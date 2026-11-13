@@ -6,6 +6,7 @@ import { useContainer } from '@/bootstrap/ContainerContext';
 import type { LyftaSyncResult } from '@/data/lyfta/lyftaSync';
 import { SECRET_KEYS } from '@/data/secrets/SecretStore';
 import type { SyncState } from '@/data/sync/SyncStateRepository';
+import { LB_TO_KG } from '@/data/lyfta/parseWorkouts';
 import type { Workout, WeightUnit } from '@/domain/workouts/types';
 
 const RECENT_COUNT = 5;
@@ -20,6 +21,12 @@ interface Snapshot {
 
 function countSets(workout: Workout): number {
   return workout.exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
+}
+
+/** Formats a stored kilogram value as `<kg> kg (<lb> lb)` so it can be compared with Lyfta. */
+function formatKgAndLb(kg: number | null): string {
+  if (kg === null) return 'none';
+  return `${kg.toFixed(1)} kg (${(kg / LB_TO_KG).toFixed(1)} lb)`;
 }
 
 /** Temporary developer screen that exercises the Lyfta pipeline; Plan 2 replaces it. */
@@ -162,6 +169,15 @@ export default function Index() {
         <Text>Last error: {snapshot?.syncState.lastError ?? 'none'}</Text>
         {loadError !== null && <Text>Load error: {loadError}</Text>}
         {actionError !== null && <Text>Error: {actionError}</Text>}
+
+        {/* TEMPORARY (Plan 2 replaces this screen): compare stored weights with the Lyfta app once. */}
+        <Text style={styles.section}>Weight check (newest workout)</Text>
+        <Text testID="weight-check">
+          First set: {formatKgAndLb(snapshot?.recent[0]?.exercises[0]?.sets[0]?.weightKg ?? null)}
+        </Text>
+        <Text testID="body-weight-check">
+          Body weight: {formatKgAndLb(snapshot?.recent[0]?.bodyWeightKg ?? null)}
+        </Text>
 
         <Text style={styles.section}>Newest {RECENT_COUNT}</Text>
         {snapshot?.recent.map((workout) => (
