@@ -123,4 +123,40 @@ describe('createLyftaClient', () => {
     expect((error as LyftaError).kind).toBe('bad_request');
     expect((error as LyftaError).message).not.toContain(KEY);
   });
+
+  test('times out when the body stalls after headers arrive', async () => {
+    const fetchFn = jest.fn(async (_url: string, init: RequestInit) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      text: () =>
+        new Promise<string>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        }),
+    }));
+    const client = createLyftaClient({
+      fetchFn: fetchFn as unknown as typeof fetch,
+      getApiKey: async () => KEY,
+      timeoutMs: 20,
+    });
+
+    expect((await kindOf(client.getProfile())).kind).toBe('network');
+  });
+
+  test('maps a failing body read to network, not invalid_response', async () => {
+    const fetchFn = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      text: async () => {
+        throw new TypeError('connection dropped');
+      },
+    }));
+    const client = createLyftaClient({
+      fetchFn: fetchFn as unknown as typeof fetch,
+      getApiKey: async () => KEY,
+    });
+
+    expect((await kindOf(client.getProfile())).kind).toBe('network');
+  });
 });

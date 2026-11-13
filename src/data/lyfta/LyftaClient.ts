@@ -70,15 +70,21 @@ export function createLyftaClient(deps: LyftaClientDeps): LyftaClient {
     if (wait > 0) await sleep(wait);
   }
 
-  async function fetchOnce(url: string, apiKey: string): Promise<Response> {
+  /**
+   * Performs one request and reads the whole body before the timeout is cleared, so the timeout
+   * also covers a server that sends headers and then stalls. Any failure here is a network error.
+   */
+  async function fetchOnce(url: string, apiKey: string): Promise<{ response: Response; body: string }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      return await deps.fetchFn(url, {
+      const response = await deps.fetchFn(url, {
         method: 'GET',
         headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
         signal: controller.signal,
       });
+      const body = await response.text();
+      return { response, body };
     } catch {
       throw new LyftaError('network', 'Could not reach Lyfta (network error or timeout)');
     } finally {
@@ -95,7 +101,7 @@ export function createLyftaClient(deps: LyftaClientDeps): LyftaClient {
 
     for (let attempt = 0; ; attempt++) {
       await waitForSlot();
-      const response = await fetchOnce(url, apiKey);
+      const { response, body } = await fetchOnce(url, apiKey);
 
       if (response.status === 429) {
         if (attempt >= maxRetries) {
@@ -115,7 +121,7 @@ export function createLyftaClient(deps: LyftaClientDeps): LyftaClient {
       }
 
       try {
-        return JSON.parse(await response.text()) as unknown;
+        return JSON.parse(body) as unknown;
       } catch {
         throw new LyftaError('invalid_response', 'Lyfta returned a body that is not valid JSON', response.status);
       }
