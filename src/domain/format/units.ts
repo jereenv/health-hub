@@ -36,6 +36,16 @@ export function formatVolume(kg: number, unit: WeightUnit): string {
   return `${Math.round(value)} ${unit}`;
 }
 
+const METERS_PER_MILE = 1609.344;
+
+/** Miles for 'lb', kilometres for 'kg', one decimal. Never negative zero or NaN. */
+export function formatDistance(meters: number, unit: WeightUnit): string {
+  const safe = Number.isFinite(meters) ? Math.max(0, meters) : 0;
+  return unit === 'lb'
+    ? `${(safe / METERS_PER_MILE).toFixed(1)} mi`
+    : `${(safe / 1000).toFixed(1)} km`;
+}
+
 export function formatHeight(cm: number): string {
   const totalInches = Math.round(cm / CM_PER_INCH);
   const feet = Math.floor(totalInches / INCHES_PER_FOOT);

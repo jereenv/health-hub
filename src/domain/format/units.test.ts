@@ -1,5 +1,6 @@
 import type { WeightUnit } from '@/domain/workouts/types';
 import {
+  formatDistance,
   formatHeight,
   formatVolume,
   formatWeight,
@@ -42,4 +43,25 @@ test.each([
 test('formatHeight', () => {
   expect(formatHeight(178)).toBe('178 cm · 5 ft 10 in');
   expect(formatHeight(182.9)).toBe('183 cm · 6 ft 0 in');
+});
+
+test('formatDistance shows miles for lb and kilometres for kg with one decimal', () => {
+  expect(formatDistance(8046.72, 'lb')).toBe('5.0 mi');
+  expect(formatDistance(5000, 'kg')).toBe('5.0 km');
+  expect(formatDistance(1234, 'kg')).toBe('1.2 km');
+  expect(formatDistance(1234, 'lb')).toBe('0.8 mi');
+});
+
+test.each<[number, 'lb' | 'kg']>([
+  [0, 'lb'],
+  [0, 'kg'],
+  [-0, 'kg'],
+  [30, 'kg'],
+  [30, 'lb'],
+  [-5, 'kg'],
+  [Number.NaN, 'lb'],
+])('formatDistance of %s %s does not show -0 or NaN', (meters, unit) => {
+  const text = formatDistance(meters, unit);
+  expect(text).toMatch(/^\d+\.\d (km|mi)$/);
+  expect(text).not.toMatch(/-|NaN/);
 });

@@ -1,1 +1,1 @@
-export { ActivityScreen as default } from '@/ui/screens/placeholders/ActivityScreen';
+export { ActivityScreen as default } from '@/ui/screens/activity/ActivityScreen';
