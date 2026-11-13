@@ -9,7 +9,13 @@ export interface DeletionPause {
   reason: 'unreadable' | 'error';
   /** Local workouts that look deleted, ascending. Empty when the run skipped before finding any. */
   candidateIds: number[];
+  /**
+   * Unreadable workouts behind this pause (the UI shows this for a pause; `lastSkipped` is the
+   * latest run's window). A kept pause is not refreshed.
+   */
   skipped: number;
+  /** ISO UTC time the pause was recorded; kept pauses expire from it. */
+  pausedAt: string;
 }
 
 /** Sync health recorded with a successful run. */
@@ -64,11 +70,12 @@ function parseDeletionPause(stored: string | null): DeletionPause | null {
   try {
     const value: unknown = JSON.parse(stored);
     if (typeof value !== 'object' || value === null) return null;
-    const { reason, candidateIds, skipped } = value as Record<string, unknown>;
+    const { reason, candidateIds, skipped, pausedAt } = value as Record<string, unknown>;
     if (reason !== 'unreadable' && reason !== 'error') return null;
     if (!Array.isArray(candidateIds) || !candidateIds.every(Number.isInteger)) return null;
     if (typeof skipped !== 'number' || !Number.isInteger(skipped) || skipped < 0) return null;
-    return { reason, candidateIds: candidateIds as number[], skipped };
+    if (typeof pausedAt !== 'string') return null;
+    return { reason, candidateIds: candidateIds as number[], skipped, pausedAt };
   } catch {
     return null;
   }

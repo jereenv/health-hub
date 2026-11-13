@@ -15,6 +15,8 @@ export const LYFTA_PAGE_SIZE = 100;
 
 /** Hard ceiling on pages fetched in one listing, whatever the server claims. */
 export const LYFTA_MAX_PAGES = 200;
+/** How long a kept `unreadable` deletion pause holds before the confirmation is tried again. */
+export const DELETION_PAUSE_RETRY_MS = 24 * 60 * 60 * 1000;
 /** Pages beyond the record count's own, tolerating records added while paging. */
 const PAGE_CAP_SLACK = 2;
 
@@ -195,6 +197,7 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
       windowedIds: readonly number[],
       fromIso: string,
       toIso: string,
+      pausedAt: string,
     ): Promise<{ deleted: number; pause: DeletionPause | null }> => {
       const candidateIds = [...candidates].sort((a, b) => a - b);
       try {
@@ -207,7 +210,7 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
         if (full.skipped > 0) {
           return {
             deleted: 0,
-            pause: { reason: 'unreadable', candidateIds, skipped: full.skipped },
+            pause: { reason: 'unreadable', candidateIds, skipped: full.skipped, pausedAt },
           };
         }
         const deleted = await workouts.deleteMissingInRange(fromIso, toIso, [
@@ -216,7 +219,7 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
         ]);
         return { deleted, pause: null };
       } catch {
-        return { deleted: 0, pause: { reason: 'error', candidateIds, skipped: 0 } };
+        return { deleted: 0, pause: { reason: 'error', candidateIds, skipped: 0, pausedAt } };
       }
     };
 
@@ -248,7 +251,12 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
     let deleted = 0;
     let deletionPause: DeletionPause | null = null;
     if (totals.skipped > 0) {
-      deletionPause = { reason: 'unreadable', candidateIds: [], skipped: totals.skipped };
+      deletionPause = {
+        reason: 'unreadable',
+        candidateIds: [],
+        skipped: totals.skipped,
+        pausedAt: syncedAt,
+      };
     } else {
       const returned = new Set(windowed.ids);
       const localIds = await workouts.listIdsInRange(fromIso, toIso);
@@ -256,11 +264,24 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
       if (candidates.size > 0) {
         const stored = state.deletionPause;
         const sortedIds = [...candidates].sort((a, b) => a - b);
-        if (stored?.reason === 'unreadable' && sameIds(stored.candidateIds, sortedIds)) {
-          // The same workouts are still blocked by the same unreadable rows; skip the full listing.
+        const pausedFor =
+          stored === null ? 0 : deps.now().getTime() - new Date(stored.pausedAt).getTime();
+        if (
+          stored?.reason === 'unreadable' &&
+          sameIds(stored.candidateIds, sortedIds) &&
+          pausedFor < DELETION_PAUSE_RETRY_MS
+        ) {
+          // The same workouts are still blocked by the same unreadable rows; skip the full listing
+          // until the pause is a day old, in case the rows have become readable.
           deletionPause = stored;
         } else {
-          const outcome = await confirmDeletions(candidates, windowed.ids, fromIso, toIso);
+          const outcome = await confirmDeletions(
+            candidates,
+            windowed.ids,
+            fromIso,
+            toIso,
+            syncedAt,
+          );
           deleted = outcome.deleted;
           deletionPause = outcome.pause;
         }
