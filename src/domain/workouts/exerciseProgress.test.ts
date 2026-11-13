@@ -122,9 +122,7 @@ describe('exerciseSessions', () => {
     const workout = makeWorkout({
       lyftaId: 1,
       performedAt: '2026-11-01T15:00:00.000Z',
-      exercises: [
-        makeExercise({ sets: [makeSet({ completed: false }), makeSet({ weightKg: null })] }),
-      ],
+      exercises: [makeExercise({ sets: [makeSet({ reps: null }), makeSet({ weightKg: null })] })],
     });
     expect(exerciseSessions([workout], 1)).toEqual([
       {

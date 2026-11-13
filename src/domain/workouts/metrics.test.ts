@@ -30,20 +30,22 @@ describe('volume', () => {
     makeSet({ position: 2, weightKg: 0, reps: 10 }),
     makeSet({ position: 3, weightKg: 80, reps: null }),
     makeSet({ position: 4, weightKg: 80, reps: 5 }),
+    makeSet({ position: 5, weightKg: -5, reps: 5 }),
+    makeSet({ position: 6, weightKg: 80, reps: 2.5 }),
   ];
 
-  test('uncompleted, weightless and rep-less sets never count', () => {
+  test('sets without weight or whole reps never count, ticked or not', () => {
     const exercise = makeExercise({ sets });
     const workout = makeWorkout({
       lyftaId: 1,
       performedAt: '2026-01-01T10:00:00Z',
       exercises: [exercise],
     });
-    expect(workoutVolumeKg(workout)).toBe(400);
-    expect(exerciseVolumeKg(exercise)).toBe(400);
-    expect(scoredSetCount(exercise)).toBe(1);
-    expect(sets.map(isScoredSet)).toEqual([false, false, false, false, true]);
-    expect(sets.map(setVolumeKg)).toEqual([0, 0, 0, 0, 400]);
+    expect(workoutVolumeKg(workout)).toBe(800);
+    expect(exerciseVolumeKg(exercise)).toBe(800);
+    expect(scoredSetCount(exercise)).toBe(3);
+    expect(sets.map(isScoredSet)).toEqual([true, false, true, false, true, false, false]);
+    expect(sets.map(setVolumeKg)).toEqual([400, 0, 0, 0, 400, 0, 0]);
   });
 
   test('workout volume sums every exercise', () => {

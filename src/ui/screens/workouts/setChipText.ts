@@ -3,12 +3,12 @@ import type { WeightUnit, WorkoutSet } from '@/domain/workouts/types';
 
 const NBSP = ' ';
 
-/** What a set chip shows. An unfinished or unscorable set still displays; it is just dimmed. */
+/** What a set chip shows. A set that can't be scored still displays. */
 export function describeSetChip(
   set: WorkoutSet,
   unit: WeightUnit,
   isPr: boolean,
-): { main: string; sub: string; tone: 'plain' | 'pr' | 'dim'; accessibilityLabel: string } {
+): { main: string; sub: string; tone: 'plain' | 'pr'; accessibilityLabel: string } {
   const hasReps = set.reps !== null && set.reps >= 1;
   const hasWeight = set.weightKg !== null && set.weightKg > 0;
   const main =
@@ -18,11 +18,7 @@ export function describeSetChip(
         ? `${set.reps} reps`
         : '—';
 
-  const parts = [
-    ...(isPr ? ['PR'] : []),
-    ...(set.rir === null ? [] : [`RIR ${set.rir}`]),
-    ...(set.completed ? [] : ['Not done']),
-  ];
+  const parts = [...(isPr ? ['PR'] : []), ...(set.rir === null ? [] : [`RIR ${set.rir}`])];
   const sub = parts.length === 0 ? NBSP : parts.join(' · ');
 
   const spoken = [
@@ -31,13 +27,12 @@ export function describeSetChip(
       ? `${formatWeightNumber(set.weightKg!, unit)} ${unit} × ${set.reps}`
       : main,
     ...(set.rir === null ? [] : [`RIR ${set.rir}`]),
-    ...(set.completed ? [] : ['not done']),
     ...(isPr ? ['personal record'] : []),
   ];
   return {
     main,
     sub,
-    tone: isPr ? 'pr' : set.completed ? 'plain' : 'dim',
+    tone: isPr ? 'pr' : 'plain',
     accessibilityLabel: spoken.join(', '),
   };
 }

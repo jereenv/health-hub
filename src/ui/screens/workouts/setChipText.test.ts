@@ -26,7 +26,7 @@ test.each<[Partial<WorkoutSet>, WeightUnit, boolean, object]>([
     { weightKg: 135 * LB_TO_KG, reps: 5, rir: 2, completed: false },
     'lb',
     false,
-    { main: '135 × 5', sub: 'RIR 2 · Not done', tone: 'dim' },
+    { main: '135 × 5', sub: 'RIR 2', tone: 'plain' },
   ],
   [
     { weightKg: null, reps: null, rir: null, completed: true },

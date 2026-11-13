@@ -98,7 +98,7 @@ export function ExerciseProgressScreen(): React.JSX.Element {
         <EmptyState
           icon="dumbbell"
           title="No weighted sets for this exercise"
-          body="Completed sets with weight and reps will chart here."
+          body="Logged sets with weight and reps will chart here."
         />
       ) : (
         <ScrollView

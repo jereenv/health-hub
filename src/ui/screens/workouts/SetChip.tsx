@@ -30,7 +30,6 @@ export function SetChip({
         borderWidth: 1,
         borderColor: chip.tone === 'pr' ? colors.accentInk : colors.line,
         backgroundColor: colors.raised,
-        opacity: chip.tone === 'dim' ? 0.55 : 1,
       }}
     >
       <AppText variant="bodyStrong" numeric>

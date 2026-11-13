@@ -37,7 +37,12 @@ test('marks PR sets and counts each PR set once', () => {
 
 test('exercise meta counts scored sets and their volume', () => {
   const [bench, plank] = buildWorkoutDetail(workout, new Set()).exercises;
-  expect(bench).toMatchObject({ scoredSets: 1, volumeKg: 500, name: 'Bench Press', exerciseId: 1 });
+  expect(bench).toMatchObject({
+    scoredSets: 2,
+    volumeKg: 1100,
+    name: 'Bench Press',
+    exerciseId: 1,
+  });
   expect(plank).toMatchObject({ scoredSets: 0, volumeKg: 0 });
 });
 
@@ -48,7 +53,7 @@ test('counts every exercise and set, including sets not done', () => {
     title: 'Push',
     date: '2026-11-10',
     durationS: 3000,
-    volumeKg: 500,
+    volumeKg: 1100,
     exerciseCount: 2,
     setCount: 3,
   });

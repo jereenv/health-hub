@@ -108,18 +108,31 @@ test('a set can hold both kinds but counts once in prSetKeys', () => {
   expect(prSetKey(2, 0, 0)).toBe('2:0:0');
 });
 
-test('exercises are tracked independently and unscored sets are ignored', () => {
+test('exercises are tracked independently and sets without weight are ignored', () => {
   const w2 = makeWorkout({
     lyftaId: 2,
     performedAt: '2026-01-08T10:00:00Z',
     exercises: [
       makeExercise({
         exerciseId: 1,
-        sets: [makeSet({ weightKg: 200, reps: 5, completed: false })],
+        sets: [makeSet({ weightKg: null, reps: 5 })],
       }),
       makeExercise({ position: 1, exerciseId: 2, sets: [makeSet({ weightKg: 50, reps: 5 })] }),
     ],
   });
   const records = computePersonalRecords([bench(1, '2026-01-01T10:00:00Z', [[80, 5]]), w2]);
   expect(records).toEqual([]);
+});
+
+test('a set that was never ticked still counts toward records', () => {
+  const w2 = makeWorkout({
+    lyftaId: 2,
+    performedAt: '2026-01-08T10:00:00Z',
+    exercises: [makeExercise({ sets: [makeSet({ weightKg: 100, reps: 5, completed: false })] })],
+  });
+  const records = computePersonalRecords([bench(1, '2026-01-01T10:00:00Z', [[80, 5]]), w2]);
+  expect(records.map((rec) => [rec.kind, rec.valueKg])).toEqual([
+    ['weight', 100],
+    ['e1rm', 100 * (1 + 5 / 30)],
+  ]);
 });

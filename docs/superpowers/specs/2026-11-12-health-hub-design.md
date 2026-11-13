@@ -342,9 +342,10 @@ Answers to a builder's review of this document. Items marked *Claude's call* wer
 7. **Units and time.** *Claude's call:* read the weight unit from Lyfta's `/profile`; store kg internally; display in the owner's chosen unit. "Day" means a local day in the phone's time zone (America/New_York, verified), with DST handled by the time library. Query Lyfta `from`/`to` with ±1 day padding, then bucket locally.
 8. **Health Connect timestamps.** *Claude's call:* verify on device whether MovingLife writes the measurement time or the sync time. If sync time, dedupe on same local day + weight within 0.1 kg instead of ±2 minutes.
 9. **Lyfta body weight.** Owner decision 2026-11-12: Lyfta's workout `body_weight` is manually entered and is never used; body weight comes only from the scale (BLE) and MovingLife / Health Connect / Senssun history.
-10. Lyfta `total_volume` is not used; volume is computed from completed sets as Σ(weight_kg × reps) (Ruling 14).
+10. Lyfta `total_volume` is not used; volume is computed from logged sets as Σ(weight_kg × reps) (Ruling 14).
 11. The Lyfta weight unit is read from `/exercises/progress` `weight_unit` (`/profile` has no unit field).
 12. Lyfta `workout_perform_date` is zoneless local (America/New_York) wall time (owner ruling 2026-11-13).
+13. Lyfta set `is_completed` is not used: the owner logs sets without ticking them, and Lyfta's own `total_volume` ignores it, so every logged set with weight and reps counts (owner data check 2026-11-13).
 
 ## 19. Left to the builder
 
