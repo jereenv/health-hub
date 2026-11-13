@@ -78,7 +78,13 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
 
   function update(patch: Partial<SyncSnapshot>): void {
     snapshot = { ...snapshot, ...patch };
-    for (const listener of [...listeners]) listener();
+    for (const listener of [...listeners]) {
+      try {
+        listener();
+      } catch {
+        // One failing subscriber must not skip the others or make a sync call reject.
+      }
+    }
   }
 
   function enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -87,14 +93,16 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
     return next;
   }
 
-  /** Re-parses stored workouts; returns the counts, or the error message when it throws. */
-  async function reparse(): Promise<
-    { counts: { reparsed: number; skipped: number } | null } | { error: string }
-  > {
+  /**
+   * Re-parses stored workouts and returns the counts. A failure is not fatal: the re-parse is local
+   * bookkeeping that leaves `parsedWith` unsaved, so the next run retries it, and a real database
+   * problem shows up in the sync's own result. It counts as no work.
+   */
+  async function reparse(): Promise<{ reparsed: number; skipped: number } | null> {
     try {
-      return { counts: await ensureWorkoutsParsed({ workouts, settings }) };
-    } catch (error) {
-      return { error: messageOf(error) };
+      return await ensureWorkoutsParsed({ workouts, settings });
+    } catch {
+      return null;
     }
   }
 
@@ -105,22 +113,18 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
       scheduleResult: SyncRunResult['schedule'],
     ): SyncRunResult => ({ workouts: workoutsResult, schedule: scheduleResult, reparsed });
 
-    /** Runs a re-parse and folds its counts in; returns an error message if it failed. */
-    const reparseAndRecord = async (): Promise<string | null> => {
-      const outcome = await reparse();
-      if ('error' in outcome) return outcome.error;
-      if (outcome.counts !== null) {
-        reparsed = {
-          reparsed: (reparsed?.reparsed ?? 0) + outcome.counts.reparsed,
-          skipped: (reparsed?.skipped ?? 0) + outcome.counts.skipped,
-        };
-      }
-      return null;
+    /** Runs a re-parse and adds its counts, when it did any work, to `reparsed`. */
+    const reparseAndRecord = async (): Promise<void> => {
+      const counts = await reparse();
+      if (counts === null || counts.reparsed + counts.skipped === 0) return;
+      reparsed = {
+        reparsed: (reparsed?.reparsed ?? 0) + counts.reparsed,
+        skipped: (reparsed?.skipped ?? 0) + counts.skipped,
+      };
     };
 
     // 1. Local only: bring stored workouts up to the current parser and unit.
-    const firstError = await reparseAndRecord();
-    if (firstError !== null) return finish({ status: 'error', message: firstError }, SKIPPED);
+    await reparseAndRecord();
 
     // 2. Without a key there is nothing to ask Lyfta.
     let apiKey: string | null;
@@ -134,10 +138,7 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
     // 3. Re-check the account unit; a change means stored weights must be converted again.
     try {
       const { changed } = await refreshLyftaUnit({ client, settings });
-      if (changed) {
-        const error = await reparseAndRecord();
-        if (error !== null) return finish({ status: 'error', message: error }, SKIPPED);
-      }
+      if (changed) await reparseAndRecord();
     } catch (error) {
       if (error instanceof LyftaError && error.kind === 'unauthorized') {
         try {
@@ -166,10 +167,7 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
     }
 
     // The first backfill detects the unit, so only now can it be parsed with and remembered.
-    if (workoutsResult.status === 'ok') {
-      const error = await reparseAndRecord();
-      if (error !== null) workoutsResult = { status: 'error', message: error };
-    }
+    if (workoutsResult.status === 'ok') await reparseAndRecord();
 
     // 5. Schedule, unless the key is missing or rejected.
     let scheduleResult: SyncRunResult['schedule'] = SKIPPED;

@@ -105,7 +105,7 @@ test('makes no request without a key', async () => {
   expect(await sync.run()).toEqual({
     workouts: { status: 'not_configured' },
     schedule: { status: 'skipped' },
-    reparsed: { reparsed: 0, skipped: 0 },
+    reparsed: null,
   });
   expect(log).toEqual([]);
 });
@@ -294,15 +294,44 @@ test('snapshot is stable between changes and bumps dataVersion after each run an
   expect(seen).toHaveLength(3);
 });
 
-describe('never rejects', () => {
-  test('when a repository throws during the re-parse', async () => {
-    const { deps } = await setup();
-    const workouts = { ...deps.workouts, listRaw: () => Promise.reject(new Error('db down')) };
-    const sync = createSyncCoordinator({ ...deps, workouts });
+describe('a failing re-parse is not fatal', () => {
+  const failingRaw = (deps: Awaited<ReturnType<typeof setup>>['deps']) => ({
+    ...deps.workouts,
+    listRaw: () => Promise.reject(new Error('db down')),
+  });
+
+  test('before the sync: workouts and schedule still sync normally', async () => {
+    const { deps, log } = await setup();
+    const sync = createSyncCoordinator({ ...deps, workouts: failingRaw(deps) });
     const result = await sync.run();
-    expect(result.workouts).toEqual({ status: 'error', message: 'db down' });
-    expect(result.schedule).toEqual({ status: 'skipped' });
-    expect(sync.getSnapshot()).toMatchObject({ running: false, dataVersion: 1 });
+    expect(result.workouts).toMatchObject({ status: 'ok' });
+    expect(result.schedule).toMatchObject({ status: 'ok' });
+    expect(result.reparsed).toBeNull();
+    expect(log).toEqual(['getExerciseProgress', 'listWorkouts', 'listSchedule']);
+    expect(await deps.settings.get('lyfta.parsedWith')).toBeNull();
+  });
+
+  test('after a successful sync: workouts stay ok', async () => {
+    const { deps } = await setup({ unit: null });
+    const sync = createSyncCoordinator({ ...deps, workouts: failingRaw(deps) });
+    const result = await sync.run();
+    expect(result.workouts).toMatchObject({ status: 'ok', mode: 'backfill' });
+    expect(result.reparsed).toBeNull();
+  });
+});
+
+describe('never rejects', () => {
+  test('when a listener throws, and the other listeners are still called', async () => {
+    const { sync } = await setup();
+    const good = jest.fn();
+    sync.subscribe(() => {
+      throw new Error('bad listener');
+    });
+    sync.subscribe(good);
+    await expect(sync.run()).resolves.toMatchObject({ workouts: { status: 'ok' } });
+    expect(good).toHaveBeenCalledTimes(2);
+    await expect(sync.wipe()).resolves.toBeUndefined();
+    expect(good).toHaveBeenCalledTimes(3);
   });
 
   test('when the secret store throws', async () => {
