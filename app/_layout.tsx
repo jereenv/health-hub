@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ContainerProvider } from '@/bootstrap/ContainerContext';
+import { SheetHost } from '@/ui/components/SheetHost';
 import { ThemeProvider, useTheme } from '@/ui/theme/ThemeProvider';
 
 function ThemedStack(): React.JSX.Element {
@@ -16,7 +17,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <ContainerProvider>
-          <ThemedStack />
+          <SheetHost>
+            <ThemedStack />
+          </SheetHost>
         </ContainerProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
