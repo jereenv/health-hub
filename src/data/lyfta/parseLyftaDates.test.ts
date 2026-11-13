@@ -1,6 +1,6 @@
 import { localDateKey } from '@/domain/time/localDate';
 
-import { parseLyftaDate, parseLyftaInstant } from './parseLyftaDates';
+import { parseLyftaDate, parseLyftaInstant, resolveLocalWallTime } from './parseLyftaDates';
 
 // Jest runs with TZ=America/New_York, so zoneless Lyfta times are New York wall-clock times.
 test.each([
@@ -64,4 +64,37 @@ test.each([
   [20261114, null],
 ])('parseLyftaDate(%p) = %p', (value, expected) => {
   expect(parseLyftaDate(value)).toBe(expected);
+});
+
+describe('resolveLocalWallTime does not depend on the engine', () => {
+  // A hand-written New York clock: EST (-5h) until 2026-03-08T07:00Z, EDT (-4h) until
+  // 2026-11-01T06:00Z, then EST again. It reads wall time only, never the Date constructor.
+  const SPRING = Date.UTC(2026, 2, 8, 7);
+  const FALL = Date.UTC(2026, 10, 1, 6);
+  const HOUR = 3_600_000;
+  const readWall = (ms: number): number => {
+    const offset = ms >= SPRING && ms < FALL ? -4 * HOUR : -5 * HOUR;
+    return ms + offset;
+  };
+
+  test('a gap shifts forward by the gap', () => {
+    expect(
+      new Date(resolveLocalWallTime(Date.UTC(2026, 2, 8, 2, 30), readWall)).toISOString(),
+    ).toBe('2026-03-08T07:30:00.000Z');
+  });
+
+  test('an overlap takes the first occurrence', () => {
+    expect(
+      new Date(resolveLocalWallTime(Date.UTC(2026, 10, 1, 1, 30), readWall)).toISOString(),
+    ).toBe('2026-11-01T05:30:00.000Z');
+  });
+
+  test('ordinary times resolve exactly', () => {
+    expect(
+      new Date(resolveLocalWallTime(Date.UTC(2026, 7, 20, 13, 5), readWall)).toISOString(),
+    ).toBe('2026-08-20T17:05:00.000Z');
+    expect(
+      new Date(resolveLocalWallTime(Date.UTC(2026, 0, 15, 13, 5), readWall)).toISOString(),
+    ).toBe('2026-01-15T18:05:00.000Z');
+  });
 });

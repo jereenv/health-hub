@@ -40,15 +40,53 @@ function offsetMs(zone: string): number | null {
   return match[1] === '-' ? -magnitude : magnitude;
 }
 
+const DAY_MS = 86_400_000;
+
+/** The local wall-clock fields of an instant, encoded as UTC milliseconds (see `Date.UTC`). */
+export type LocalWallReader = (instantMs: number) => number;
+
+/** Reads the device-zone wall clock of an instant using only the engine's field getters. */
+const readDeviceWall: LocalWallReader = (instantMs) => {
+  const d = new Date(instantMs);
+  return Date.UTC(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+    d.getHours(),
+    d.getMinutes(),
+    d.getSeconds(),
+    d.getMilliseconds(),
+  );
+};
+
+/**
+ * Finds the instant at which a zone's wall clock reads `wallMs` (the wanted fields encoded with
+ * `Date.UTC`), without relying on how the engine resolves non-existent or ambiguous local times.
+ * It samples the zone's UTC offset a day either side, keeps each candidate instant that reads back
+ * as exactly the wanted wall time, and applies our rule:
+ * - Ambiguous (fall-back overlap, two candidates): the earlier, first occurrence.
+ * - Non-existent (spring-forward gap, no candidate): the pre-transition offset is applied, which
+ *   moves the time forward by the length of the gap.
+ */
+export function resolveLocalWallTime(wallMs: number, readWall: LocalWallReader): number {
+  const offsetAt = (instantMs: number): number => readWall(instantMs) - instantMs;
+  const before = offsetAt(wallMs - DAY_MS);
+  const after = offsetAt(wallMs + DAY_MS);
+  const valid = [before, after]
+    .map((offset) => wallMs - offset)
+    .filter((candidate) => readWall(candidate) === wallMs);
+  return valid.length > 0 ? Math.min(...valid) : wallMs - before;
+}
+
 /**
  * Turns a Lyfta datetime into our normalised ISO UTC string, without ever handing the string to
  * the engine's date parser. Accepts `YYYY-MM-DD[T ]HH:mm[:ss[.fff]]` with an optional `Z` or
  * `±hh:mm`.
  *
  * Lyfta's `workout_perform_date` has no zone; it is the owner's local wall-clock time, so a
- * zoneless value is read as local time in the device zone (DST-aware) using the numeric `Date`
- * constructor. Daylight-saving edges follow the ECMAScript local-time rules, which we adopt as
- * our rule:
+ * zoneless value is read as local time in the device zone (DST-aware). The result is checked by
+ * reading the wall clock back (`resolveLocalWallTime`), so daylight-saving edges follow this rule
+ * whatever the JS engine does:
  * - A non-existent local time (the spring-forward gap, e.g. 2026-03-08 02:30 in New York) moves
  *   forward by the length of the gap (to 03:30 local, 07:30Z).
  * - An ambiguous local time (the fall-back overlap, e.g. 2026-11-01 01:30) takes the earlier,
@@ -75,15 +113,18 @@ export function parseLyftaInstant(value: unknown): string | null {
   const zone = match[8];
   let instantMs: number;
   if (zone === undefined) {
-    instantMs = new Date(
-      parts.year,
-      parts.month - 1,
-      parts.day,
-      parts.hour,
-      parts.minute,
-      parts.second,
-      parts.millisecond,
-    ).getTime();
+    instantMs = resolveLocalWallTime(
+      Date.UTC(
+        parts.year,
+        parts.month - 1,
+        parts.day,
+        parts.hour,
+        parts.minute,
+        parts.second,
+        parts.millisecond,
+      ),
+      readDeviceWall,
+    );
   } else {
     const offset = offsetMs(zone);
     if (offset === null) return null;
