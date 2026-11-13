@@ -19,6 +19,8 @@ export interface SyncStateRepository {
   saveCursor(source: SyncSource, cursor: string | null): Promise<void>;
   /** Records a finished sync and clears any earlier error. */
   recordSuccess(source: SyncSource, at: string, cursor: string | null): Promise<void>;
+  /** Forgets cursor, last success and errors, so the next sync starts from scratch. */
+  reset(source: SyncSource): Promise<void>;
   /** Records a failure but keeps the last success time and cursor, so progress survives. */
   recordError(source: SyncSource, message: string, at: string): Promise<void>;
 }
@@ -66,6 +68,10 @@ export function createSqliteSyncStateRepository(db: SqlDatabase): SyncStateRepos
            last_error_at = NULL`,
         [source, cursor, at],
       );
+    },
+
+    async reset(source) {
+      await db.run('DELETE FROM sync_state WHERE source = ?', [source]);
     },
 
     async recordError(source, message, at) {

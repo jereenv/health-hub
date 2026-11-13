@@ -130,6 +130,26 @@ export default function Index() {
     });
   };
 
+  /**
+   * TEMPORARY (Plan 2 replaces this screen): forgets the sync progress so the next run is a full
+   * backfill that re-upserts every workout. The saved key and unit setting are left alone.
+   */
+  const fullResync = async () => {
+    if (syncInFlight.current) return;
+    syncInFlight.current = true;
+    setSyncing(true);
+    await runAction(async () => {
+      try {
+        await syncState.reset('lyfta');
+        setResult(await lyftaSync.run());
+      } finally {
+        syncInFlight.current = false;
+        setSyncing(false);
+      }
+      await refresh();
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -159,6 +179,8 @@ export default function Index() {
 
         <Text style={styles.section}>Sync</Text>
         <Button title="Sync Lyfta" disabled={syncing} onPress={() => void sync()} />
+        {/* TEMPORARY (Plan 2 replaces this screen): re-fetch everything with the current parser. */}
+        <Button title="Full re-sync" disabled={syncing} onPress={() => void fullResync()} />
         <Text testID="sync-result">
           {syncing ? 'Syncing...' : result === null ? 'Not run yet' : JSON.stringify(result)}
         </Text>

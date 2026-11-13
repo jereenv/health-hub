@@ -77,3 +77,17 @@ test('saveCursor creates the row when none exists and can clear the cursor', asy
   await repo.saveCursor('lyfta', null);
   expect((await repo.get('lyfta')).cursor).toBeNull();
 });
+
+test('reset forgets cursor, success and error', async () => {
+  const repo = await setup();
+  await repo.recordSuccess('lyfta', '2026-11-12T10:00:00.000Z', 'x');
+  await repo.recordError('lyfta', 'boom', '2026-11-12T11:00:00.000Z');
+  await repo.reset('lyfta');
+  expect(await repo.get('lyfta')).toEqual({
+    source: 'lyfta',
+    cursor: null,
+    lastSuccessAt: null,
+    lastError: null,
+    lastErrorAt: null,
+  });
+});

@@ -126,6 +126,14 @@ within the one response sampled. A field seen only as `null` has an unknown real
 `data` came back as an empty array, so the shape of its items is **not yet known**. Re-probe with an
 account state or query that returns progress rows before writing a parser for it.
 
+## Units
+
+- Set weights are in the account unit, read from `/exercises/progress` `weight_unit`.
+- `body_weight` is kg regardless of the account unit (owner-confirmed 2026-11-12; no API field
+  exposes this).
+- `total_volume` is not yet verified. It is currently treated as being in the account unit; check
+  it against raw set weights and reps before relying on it.
+
 ## Answers
 
 - **Weight unit.** Confirmed present: top-level `weight_unit` (string) on `/exercises/progress`. A
