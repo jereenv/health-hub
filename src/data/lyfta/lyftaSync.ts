@@ -56,6 +56,63 @@ export function incrementalWindow(lastSuccessAt: Date, now: Date): { from: strin
   };
 }
 
+const WEIGHT_UNIT_ERROR = 'Could not determine the Lyfta weight unit';
+
+/** Reads the weight unit setting; when unset, asks Lyfta once and persists the answer. */
+async function resolveWeightUnit(
+  client: LyftaClient,
+  settings: SettingsRepository,
+): Promise<WeightUnit> {
+  const saved = await settings.get('lyfta.weightUnit');
+  if (saved === 'lb' || saved === 'kg') return saved;
+
+  const progress = await client.getExerciseProgress();
+  const raw =
+    typeof progress === 'object' && progress !== null
+      ? (progress as Record<string, unknown>).weight_unit
+      : null;
+  const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  const unit: WeightUnit | null =
+    normalized === 'lb' || normalized === 'lbs'
+      ? 'lb'
+      : normalized === 'kg' || normalized === 'kgs'
+        ? 'kg'
+        : null;
+  // Never guess: a wrong unit would silently scale every stored weight.
+  if (unit === null) throw new Error(WEIGHT_UNIT_ERROR);
+  await settings.set('lyfta.weightUnit', unit);
+  return unit;
+}
+
+interface BackfillCursor {
+  page: number;
+  /** ISO time the backfill began; null for a legacy cursor that stored only a page number. */
+  startedAt: string | null;
+}
+
+/** Reads the saved cursor: JSON `{page, startedAt}`, or a legacy plain page number. */
+function parseBackfillCursor(cursor: string | null): BackfillCursor {
+  if (cursor === null) return { page: 1, startedAt: null };
+  try {
+    const parsed: unknown = JSON.parse(cursor);
+    if (typeof parsed === 'number') {
+      return { page: Number.isInteger(parsed) && parsed >= 1 ? parsed : 1, startedAt: null };
+    }
+    if (typeof parsed === 'object' && parsed !== null) {
+      const { page, startedAt } = parsed as { page?: unknown; startedAt?: unknown };
+      const validPage = typeof page === 'number' && Number.isInteger(page) && page >= 1 ? page : 1;
+      const validStart =
+        typeof startedAt === 'string' && !Number.isNaN(new Date(startedAt).getTime())
+          ? startedAt
+          : null;
+      return { page: validPage, startedAt: validStart };
+    }
+  } catch {
+    // Not JSON; fall through to a fresh start.
+  }
+  return { page: 1, startedAt: null };
+}
+
 interface Totals {
   inserted: number;
   updated: number;
@@ -75,60 +132,103 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
     const apiKey = await secrets.get(SECRET_KEYS.lyftaApiKey);
     if (apiKey === null || apiKey === '') return { status: 'not_configured' };
 
-    const unit: WeightUnit = (await settings.get('lyfta.weightUnit')) === 'lb' ? 'lb' : 'kg';
+    const unit = await resolveWeightUnit(client, settings);
     const state = await syncState.get('lyfta');
     const totals: Totals = { inserted: 0, updated: 0, skipped: 0 };
     const syncedAt = deps.now().toISOString();
 
-    /** Fetches pages starting at `startPage` until the last one, storing each via `onPage`. */
+    /**
+     * Fetches pages starting at `startPage` until the last one, storing the workouts accepted by
+     * `keep`. Returns the ids of all returned workouts and how many were skipped as unparseable.
+     */
     const fetchPages = async (
       startPage: number,
       range: { from?: string; to?: string },
-      onPage: (page: number, ids: number[]) => Promise<void>,
-    ): Promise<number[]> => {
+      onPage: (page: number) => Promise<void>,
+      keep: (lyftaId: number) => boolean = () => true,
+    ): Promise<{ ids: number[]; skipped: number }> => {
       const allIds: number[] = [];
+      let skipped = 0;
       for (let page = startPage; ; page += 1) {
         const json = await client.listWorkouts({ page, limit: LYFTA_PAGE_SIZE, ...range });
         const parsed = parseWorkoutPage(json, unit);
-        const result = await workouts.upsertMany(parsed.workouts, syncedAt);
+        const accepted = parsed.workouts.filter((item) => keep(item.workout.lyftaId));
+        const result = await workouts.upsertMany(accepted, syncedAt);
         totals.inserted += result.inserted;
         totals.updated += result.updated;
-        totals.skipped += parsed.skipped;
-        const ids = parsed.workouts.map((item) => item.workout.lyftaId);
-        allIds.push(...ids);
-        await onPage(page, ids);
-        if (page >= parsed.totalPages || parsed.workouts.length === 0) break;
+        skipped += parsed.skipped;
+        allIds.push(...parsed.workouts.map((item) => item.workout.lyftaId));
+        await onPage(page);
+        // A page of only skipped workouts is not the end; only an empty page or the last page is.
+        if (page >= parsed.totalPages || parsed.workouts.length + parsed.skipped === 0) break;
       }
-      return allIds;
+      return { ids: allIds, skipped };
+    };
+
+    /**
+     * A workout missing from the windowed response may have been deleted in Lyfta, or may have had
+     * its date moved outside the window (or sit on a day boundary the server filters differently).
+     * Only the full listing can tell: candidates found there are refreshed, the rest are deleted.
+     * Any failure or skipped workout means deleting nothing this run.
+     */
+    const confirmDeletions = async (
+      candidates: ReadonlySet<number>,
+      windowedIds: readonly number[],
+      fromIso: string,
+      toIso: string,
+    ): Promise<number> => {
+      try {
+        const full = await fetchPages(
+          1,
+          {},
+          async () => {},
+          (id) => candidates.has(id),
+        );
+        if (full.skipped > 0) return 0;
+        return await workouts.deleteMissingInRange(fromIso, toIso, [...windowedIds, ...full.ids]);
+      } catch {
+        return 0;
+      }
     };
 
     if (state.lastSuccessAt === null) {
-      const savedPage = Number(state.cursor ?? 1);
-      const startPage = Number.isInteger(savedPage) && savedPage >= 1 ? savedPage : 1;
-      await fetchPages(startPage, {}, (page) => syncState.saveCursor('lyfta', String(page + 1)));
-      await syncState.recordSuccess('lyfta', syncedAt, null);
+      const saved = parseBackfillCursor(state.cursor);
+      // A legacy cursor has no start time, so this run's own start is the best available.
+      const startedAt = saved.startedAt ?? syncedAt;
+      const outcome = await fetchPages(saved.page, {}, (page) =>
+        syncState.saveCursor('lyfta', JSON.stringify({ page: page + 1, startedAt })),
+      );
+      totals.skipped += outcome.skipped;
+      // Lyfta pages newest-first, so workouts logged during a pause are on pages this run skipped.
+      // Recording the original start makes the first incremental window reach back over the pause.
+      await syncState.recordSuccess('lyfta', startedAt, null);
       return { status: 'ok', mode: 'backfill', deleted: 0, ...totals };
     }
 
     const window = incrementalWindow(new Date(state.lastSuccessAt), deps.now());
-    const returnedIds = await fetchPages(1, window, async () => {});
+    const fromIso = `${window.from}T00:00:00.000Z`;
+    const toIso = `${window.to}T23:59:59.999Z`;
+    const windowed = await fetchPages(1, window, async () => {});
+    totals.skipped += windowed.skipped;
     // Only reached when every page succeeded, so a partial response can never delete data.
-    // Skipped (unparseable) workouts have no id in `returnedIds`, so deleting while any were
+    // Skipped (unparseable) workouts have no id in the returned ids, so deleting while any were
     // skipped could remove stored workouts that still exist in Lyfta; retry once they parse.
-    const deleted =
-      totals.skipped > 0
-        ? 0
-        : await workouts.deleteMissingInRange(
-            `${window.from}T00:00:00.000Z`,
-            `${window.to}T23:59:59.999Z`,
-            returnedIds,
-          );
+    let deleted = 0;
+    if (totals.skipped === 0) {
+      const returned = new Set(windowed.ids);
+      const localIds = await workouts.listIdsInRange(fromIso, toIso);
+      const candidates = new Set(localIds.filter((id) => !returned.has(id)));
+      if (candidates.size > 0) {
+        deleted = await confirmDeletions(candidates, windowed.ids, fromIso, toIso);
+      }
+    }
     await syncState.recordSuccess('lyfta', syncedAt, null);
     return { status: 'ok', mode: 'incremental', deleted, ...totals };
   } catch (error) {
     const errorAt = deps.now().toISOString();
     const isInvalidKey = error instanceof LyftaError && error.kind === 'unauthorized';
-    const message = error instanceof Error && error.message !== '' ? error.message : FALLBACK_ERROR_MESSAGE;
+    const message =
+      error instanceof Error && error.message !== '' ? error.message : FALLBACK_ERROR_MESSAGE;
     try {
       await syncState.recordError('lyfta', isInvalidKey ? 'invalid_key' : message, errorAt);
     } catch {

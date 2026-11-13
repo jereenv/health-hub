@@ -51,6 +51,18 @@ test('converts pounds to kilograms', () => {
   expect(set.weightKg).toBeCloseTo(80 * LB_TO_KG, 6);
 });
 
+test('converts body weight and total volume from pounds to kilograms', () => {
+  const workout = parseWorkoutPage(sandbox, 'lb').workouts[0].workout;
+  expect(workout.bodyWeightKg).toBeCloseTo(82 * LB_TO_KG, 6);
+  expect(workout.totalVolumeKg).toBeCloseTo(12400 * LB_TO_KG, 6);
+});
+
+test('leaves body weight and total volume unchanged in kilograms', () => {
+  const workout = parseWorkoutPage(sandbox, 'kg').workouts[0].workout;
+  expect(workout.bodyWeightKg).toBe(82);
+  expect(workout.totalVolumeKg).toBe(12400);
+});
+
 test('parses empty and non-numeric strings as null', () => {
   const json = structuredClone(sandbox);
   Object.assign(json.workouts[0].exercises[0].sets[0], { weight: '', reps: 'abc', rir: '' });

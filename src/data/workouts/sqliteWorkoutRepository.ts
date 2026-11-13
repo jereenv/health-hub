@@ -217,6 +217,14 @@ export function createSqliteWorkoutRepository(db: SqlDatabase): WorkoutRepositor
       });
     },
 
+    async listIdsInRange(fromIso, toIso) {
+      const rows = await db.all<{ lyfta_id: number }>(
+        'SELECT lyfta_id FROM workout WHERE performed_at >= ? AND performed_at <= ?',
+        [fromIso, toIso],
+      );
+      return rows.map((r) => r.lyfta_id);
+    },
+
     async count() {
       const row = await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout');
       return row?.n ?? 0;

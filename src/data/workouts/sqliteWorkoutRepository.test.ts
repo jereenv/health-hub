@@ -80,3 +80,18 @@ test('deleteMissingInRange keeps listed ids and cascades to children', async () 
   );
   expect(orphans?.n).toBe(0);
 });
+
+test('listIdsInRange returns ids performed inside the inclusive range', async () => {
+  const { repo, parsed } = await setup();
+  await repo.upsertMany(parsed, SYNCED_AT);
+
+  expect(await repo.listIdsInRange('2026-08-21T00:00:00.000Z', '2026-08-23T23:59:59.999Z')).toEqual(
+    [1002],
+  );
+  expect(
+    (await repo.listIdsInRange('2026-08-01T00:00:00.000Z', '2026-08-31T00:00:00.000Z')).sort(),
+  ).toEqual([1001, 1002]);
+  expect(await repo.listIdsInRange('2027-01-01T00:00:00.000Z', '2027-01-02T00:00:00.000Z')).toEqual(
+    [],
+  );
+});

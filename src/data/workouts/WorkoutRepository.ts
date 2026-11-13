@@ -16,6 +16,8 @@ export interface WorkoutRepository {
    * so workouts removed in Lyfta disappear locally. Returns how many were deleted.
    */
   deleteMissingInRange(fromIso: string, toIso: string, keepIds: readonly number[]): Promise<number>;
+  /** Ids of workouts performed within [fromIso, toIso] (inclusive). */
+  listIdsInRange(fromIso: string, toIso: string): Promise<number[]>;
   count(): Promise<number>;
   /** Newest first; `beforePerformedAt` is exclusive and pages through history. */
   list(p: { limit: number; beforePerformedAt?: string }): Promise<Workout[]>;
