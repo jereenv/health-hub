@@ -20,7 +20,14 @@ export interface SqlDatabase {
   all<T>(sql: string, params?: readonly SqlValue[]): Promise<T[]>;
   /** Returns the first row of a query, or null when there is none. */
   first<T>(sql: string, params?: readonly SqlValue[]): Promise<T | null>;
-  /** Runs `fn` atomically: commits on success, rolls back if it throws. */
+  /**
+   * Runs `fn` atomically: commits on success, rolls back if it throws.
+   *
+   * Not re-entrant: calling `transaction` from inside `fn` (directly, or via a
+   * repository method that opens its own transaction) waits on the outer
+   * transaction forever and hangs without throwing. To compose work, do all of
+   * it inside one `fn`.
+   */
   transaction<T>(fn: () => Promise<T>): Promise<T>;
 }
 
@@ -30,6 +37,11 @@ export interface SqlDatabase {
  * A single connection cannot hold two open transactions, so calls are chained
  * on a promise: each waits for the previous one to settle, which stops two
  * concurrent callers from interleaving their statements.
+ *
+ * The lock is not re-entrant: a `transaction` call made from inside `fn` waits
+ * on the outer transaction, which waits on `fn`, so it hangs forever and never
+ * throws. Detecting this reliably needs async-context tracking, which React
+ * Native/Hermes lacks, so callers must keep all work inside a single `fn`.
  */
 export function createTransactionRunner(
   exec: (sql: string) => Promise<void>,
