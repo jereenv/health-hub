@@ -6,6 +6,7 @@ import { useContainer } from '@/bootstrap/ContainerContext';
 import { SECRET_KEYS } from '@/data/secrets/SecretStore';
 import type { SyncState } from '@/data/sync/SyncStateRepository';
 import { LB_TO_KG } from '@/data/lyfta/parseWorkouts';
+import { localDateKey } from '@/domain/time/localDate';
 import type { Workout, WeightUnit } from '@/domain/workouts/types';
 
 const RECENT_COUNT = 5;
@@ -165,7 +166,7 @@ export default function Index() {
         <Text style={styles.section}>Newest {RECENT_COUNT}</Text>
         {snapshot?.recent.map((workout) => (
           <Text key={workout.lyftaId}>
-            {workout.performedAt.slice(0, 10)} | {workout.title} | {workout.exercises.length} ex |{' '}
+            {localDateKey(workout.performedAt)} | {workout.title} | {workout.exercises.length} ex |{' '}
             {countSets(workout)} sets
           </Text>
         ))}
