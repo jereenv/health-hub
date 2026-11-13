@@ -1,4 +1,9 @@
-import { Stack } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider as NavigationThemeProvider,
+} from 'expo-router';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -15,10 +20,27 @@ function LaunchSync(): null {
   return null;
 }
 
+/** Gives the navigator our colours; its default theme paints a light background behind scenes. */
 function ThemedStack(): React.JSX.Element {
-  const { colors } = useTheme();
+  const { scheme, colors } = useTheme();
+  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+  const navigationTheme = {
+    ...base,
+    dark: scheme === 'dark',
+    colors: {
+      ...base.colors,
+      background: colors.bg,
+      card: colors.card,
+      text: colors.ink,
+      border: colors.line,
+      primary: colors.accent,
+      notification: colors.accent,
+    },
+  };
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
+    <NavigationThemeProvider value={navigationTheme}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
+    </NavigationThemeProvider>
   );
 }
 
