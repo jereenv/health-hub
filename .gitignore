@@ -31,4 +31,9 @@
 btsnoop*
 bugreport*
 *.log
+*.db
+*.db-*
+*.sqlite*
+*.pcap
+*.pcapng
 .DS_Store
