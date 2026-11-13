@@ -75,7 +75,7 @@ Verified on the owner's phone via adb on 2026-11-12 unless noted.
 - Writes only `EXERCISE` and `TOTAL_CALORIES_BURNED` to Health Connect, so sets/weights do not reach it.
 - Official REST API, base `https://my.lyfta.app/api/v1`, personal key sent as `Authorization: Bearer <key>`. Free. Creating a new key revokes the old one. Limits: 60 requests/minute, 5,000/day. OpenAPI spec: `https://my.lyfta.app/openapi.json`. Sandbox (no auth): `GET /api/sandbox/v1/workouts`.
 - Relevant endpoints: `GET /workouts` (`limit`, `page`, `from`, `to` as `YYYY-MM-DD` UTC), `GET /workouts/summary`, `GET /exercises`, `GET /exercises/progress`, `GET /schedule` (`from`, `to`, `include_completed`), `GET /templates`, `GET /profile`.
-- Workout shape (from sandbox): `id`, `title`, `body_weight`, `workout_perform_date` (ISO UTC), `total_volume`, `exercises[]` → `exercise_id`, `excercise_name` (sic), `exercise_type`, `exercise_rest_time`, `sets[]` → `weight` (string), `reps` (string), `rir`, `duration`, `distance`, `set_type_id`, `is_completed`, `record_*`. Strings must be parsed defensively.
+- Workout shape (from sandbox): `id`, `title`, `body_weight`, `workout_perform_date` (zoneless local wall time, see §18 item 12), `total_volume`, `exercises[]` → `exercise_id`, `excercise_name` (sic), `exercise_type`, `exercise_rest_time`, `sets[]` → `weight` (string), `reps` (string), `rir`, `duration`, `distance`, `set_type_id`, `is_completed`, `record_*`. Strings must be parsed defensively.
 
 **Samsung Health** (`com.sec.android.app.shealth` 7.1.3) has Health Connect write permission for: steps, heart rate, sleep, exercise, distance, speed, power, total calories, SpO2, blood pressure, blood glucose, weight, height, body fat, BMR, nutrition. It does **not** share stress, HRV, sleep score, energy score, resting heart rate.
 
@@ -344,6 +344,7 @@ Answers to a builder's review of this document. Items marked *Claude's call* wer
 9. **Lyfta body weight.** Owner decision 2026-11-12: Lyfta's workout `body_weight` is manually entered and is never used; body weight comes only from the scale (BLE) and MovingLife / Health Connect / Senssun history.
 10. Lyfta `total_volume` is not used; volume is computed from completed sets as Σ(weight_kg × reps) (Ruling 14).
 11. The Lyfta weight unit is read from `/exercises/progress` `weight_unit` (`/profile` has no unit field).
+12. Lyfta `workout_perform_date` is zoneless local (America/New_York) wall time (owner ruling 2026-11-13).
 
 ## 19. Left to the builder
 

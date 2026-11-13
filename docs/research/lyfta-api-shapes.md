@@ -134,7 +134,7 @@ values are recorded here.
 
 | Field | Pattern seen | Interpretation for the parser |
 | --- | --- | --- |
-| `workouts[].workout_perform_date` | `9999-99-99 99:99:99` (31 of 31) | A date and time with a space separator and no zone. Parse it by hand as `YYYY-MM-DD HH:mm:ss`. The zone is **unconfirmed**; never pass it to `new Date`. |
+| `workouts[].workout_perform_date` | `9999-99-99 99:99:99` (31 of 31) | A date and time with a space separator and no zone. Parse it by hand as `YYYY-MM-DD HH:mm:ss`. It is local wall time in the owner's zone (America/New_York), not UTC (owner ruling 2026-11-13); never pass it to `new Date`. |
 | `workouts[].workout_duration` | `99:99:99` (31 of 31) | A duration in `H:MM:SS` form (colon-separated, not seconds or minutes as a bare number). |
 | `schedule[].scheduled_date` | not yet confirmed | Task 10's parser accepts both `YYYY-MM-DD` and an ISO prefix. Task 21 confirms it on device. |
 | `schedule[].scheduled_time` | not yet confirmed (`null` in the earlier sample) | Treat as optional. |
