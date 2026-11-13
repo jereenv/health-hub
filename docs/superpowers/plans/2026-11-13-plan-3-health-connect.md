@@ -59,11 +59,12 @@ Each is "ruling — why — cost if wrong".
 - **Ruling 4 — weigh-in dedupe rule is `time_window`, and the Task 22 probe confirms or flips it.** `time_window`: same weigh-in if within ±2 minutes and 0.1 kg (spec §7). `same_day`: same local day and within 0.1 kg (spec §18 item 8, used if MovingLife writes sync time). The constant `WEIGH_IN_MATCH` in `src/data/healthconnect/constants.ts` selects it; both are implemented and tested. *Cost if wrong:* wrong rule shows an extra duplicate reading or merges two real same-weight weigh-ins on one day; either only changes counts, never the weight value of a day's first reading.
 - **Ruling 5 — origin decides the table.** Weight and body fat from `com.moving.movinglife` become `scale_reading` plus `legacy_body_value`. Body fat from `com.sec.android.app.shealth` becomes `watch_body_fat` and is never joined to the scale series. Every other origin, and Samsung weight, is ignored and counted. A MovingLife body-fat record with no weight within the match rule is dropped and counted.
 - **Ruling 6 — sleep.** One row per Health Connect session. A session belongs to the local day it **ends** on (`wake_date`). Asleep time = SLEEPING + LIGHT + DEEP + REM; awake time = AWAKE + OUT_OF_BED; UNKNOWN is ignored. A session with no stages counts `end − start` as asleep and has no stage split. Nights per day sum all sessions ending that day (naps included).
-- **Ruling 7 — resting heart rate.** Samsung does not write resting HR. §7's `resting_estimate` is stored as `asleep_avg_bpm`: the duration-weighted average heart rate during the sessions ending that day, from `aggregateRecord`-style per-session queries. The UI labels it "Asleep avg". *Why:* true resting HR needs raw samples (tens of thousands of rows per month). *Cost:* it reads a few bpm above a resting figure.
+- **Ruling 7 — heart rate (owner decision 2026-11-13).** Heart rate is the daily min/avg/max from Health Connect aggregation (Samsung origin). There is no resting or asleep-average figure anywhere (no column, model field, query or UI row). *Why:* Samsung writes no resting heart rate and the owner chose daily figures only. *Cost:* none.
 - **Ruling 8 — wipe.** `wipeSyncedData` also deletes the Health Connect imports: the new tables and `scale_reading` rows with `source = 'health_connect'` (their `legacy_body_value` cascade). Rows from other sources stay, because BLE readings (Plan 5) cannot be re-downloaded. *Cost if wrong:* none; Re-import restores everything.
 - **Ruling 9 — permissions are all-or-nothing.** "Connected" means all 8 read permissions are granted. A partial grant shows "Not connected" with the Allow button; no data type is synced alone. The history permission is separate: without it the app syncs, shows "Last 30 days only" in Settings, and does a full import when it is later granted.
 - **Ruling 10 — rationale.** The manifest entries Health Connect needs come from the plugin. In-app, a `/privacy` route shows the rationale text, reachable from the Health Connect sheet and from Settings → About. The system intent that opens `MainActivity` from Health Connect's "privacy policy" link just opens the app; it is not redirected. *Cost:* one extra tap for a sideloaded personal app.
-- **Ruling 11 — Activity ranges.** Day shows the last 30 days (today included, partial). Week (12 weeks) and Month (12 months) points are the **average per completed day** in the bucket, today excluded, so a partial current week never looks like a drop. Distance follows the weight unit preference: `lb` shows miles, `kg` shows kilometres. Heart rate shows the daily average as the line and min/avg/max for the visible period as stats; there is no min–max band (it needs a new chart primitive). *Cost:* add the band later if wanted.
+- **Ruling 11 — Activity ranges.** Day shows the last 30 days (today included, partial). Week (12 weeks) and Month (12 months) points are the **average per completed day** in the bucket, today excluded, so a partial current week never looks like a drop. Distance follows the weight unit preference: `lb` shows miles, `kg` shows kilometres (owner-confirmed 2026-11-13). Heart rate shows the daily average as the line and min/avg/max for the visible period as stats (owner decision: daily avg/min/max only); there is no min–max band (it needs a new chart primitive). *Cost:* add the band later if wanted.
+- **Ruling 13 — Activity layout (owner decision 2026-11-13).** No mockup; build the five-card page described in Task 27 from the approved components.
 - **Ruling 12 — day buckets use the phone's current time zone,** natively for totals and by `localDateKey` for sessions. A record written in another zone is re-bucketed. Accepted.
 
 ## Review Focus
@@ -191,7 +192,7 @@ CREATE TABLE activity_daily (date TEXT PRIMARY KEY NOT NULL, steps INTEGER, dist
 CREATE TABLE sleep_session (hc_id TEXT PRIMARY KEY NOT NULL, start_at TEXT NOT NULL, end_at TEXT NOT NULL, wake_date TEXT NOT NULL,
   asleep_s INTEGER NOT NULL, awake_s INTEGER NOT NULL, light_s INTEGER, deep_s INTEGER, rem_s INTEGER, has_stages INTEGER NOT NULL, synced_at TEXT NOT NULL);
 CREATE INDEX idx_sleep_session_wake_date ON sleep_session (wake_date);
-CREATE TABLE heart_rate_daily (date TEXT PRIMARY KEY NOT NULL, min_bpm INTEGER NOT NULL, avg_bpm REAL NOT NULL, max_bpm INTEGER NOT NULL, asleep_avg_bpm REAL, synced_at TEXT NOT NULL);
+CREATE TABLE heart_rate_daily (date TEXT PRIMARY KEY NOT NULL, min_bpm INTEGER NOT NULL, avg_bpm REAL NOT NULL, max_bpm INTEGER NOT NULL, synced_at TEXT NOT NULL);
 CREATE TABLE watch_body_fat (hc_id TEXT PRIMARY KEY NOT NULL, measured_at TEXT NOT NULL, body_fat_pct REAL NOT NULL, origin TEXT NOT NULL);
 CREATE INDEX idx_watch_body_fat_measured_at ON watch_body_fat (measured_at);
 CREATE TABLE scale_reading (id INTEGER PRIMARY KEY AUTOINCREMENT, measured_at TEXT NOT NULL, weight_kg REAL NOT NULL, impedance_ohm REAL,
@@ -205,7 +206,7 @@ export type SyncSource = 'lyfta' | 'lyfta_schedule' | 'health_connect';
 export interface ActivityDay { date: DateKey; steps: number | null; distanceM: number | null; activeKcal: number | null; totalKcal: number | null }
 export interface SleepSessionRow { hcId: string; startAt: string; endAt: string; wakeDate: DateKey; asleepS: number; awakeS: number;
   lightS: number | null; deepS: number | null; remS: number | null; hasStages: boolean }
-export interface HeartRateDay { date: DateKey; minBpm: number; avgBpm: number; maxBpm: number; asleepAvgBpm: number | null }
+export interface HeartRateDay { date: DateKey; minBpm: number; avgBpm: number; maxBpm: number }
 export interface WatchBodyFat { hcId: string; measuredAt: string; bodyFatPct: number; origin: string }
 export interface WeighIn { measuredAt: string; weightKg: number; sourceRecordId: string; rawPayload: string; bodyFatPct: number | null }
 export interface ImportPayload { from: DateKey; activity: ActivityDay[]; sleep: SleepSessionRow[]; heartRate: HeartRateDay[];
@@ -271,7 +272,6 @@ export interface HealthConnectGateway {
   earliestDate(): Promise<DateKey | null>;                           // earliest Samsung record over the six interval types
   dailyValues(kind: DailyKind, range: DateRange): Promise<DailyValue[]>;
   dailyHeartRate(range: DateRange): Promise<DailyHeartRate[]>;
-  averageHeartRate(startAt: string, endAt: string): Promise<number | null>;
   sleepRecords(range: DateRange): Promise<SleepRecord[]>;            // sessions whose END falls in the range
   bodyRecords(kind: 'weight' | 'bodyFat'): Promise<BodyRecord[]>;   // all history, all origins
   openSettings(): void;
@@ -282,13 +282,11 @@ export function parseDailyValues(kind: DailyKind, raw: unknown): Parsed<DailyVal
 export function parseDailyHeartRate(raw: unknown): Parsed<DailyHeartRate>;
 export function parseSleepRecords(raw: unknown): Parsed<SleepRecord>;
 export function parseBodyRecords(kind: 'weight' | 'bodyFat', raw: unknown): Parsed<BodyRecord>;
-export function parseAverageHeartRate(raw: unknown): number | null;
 // weighIns.ts
 export interface WeighInResult { weighIns: WeighIn[]; watchBodyFat: WatchBodyFat[]; ignored: number; orphanBodyFat: number; implausible: number }
 export function buildWeighIns(weights: readonly BodyRecord[], bodyFat: readonly BodyRecord[], rule?: 'time_window' | 'same_day'): WeighInResult; // rule defaults to WEIGH_IN_MATCH
 // sleepSummary.ts
 export function summariseSleep(record: SleepRecord): SleepSessionRow | null;   // null when end <= start
-export function buildHeartRateDays(daily: readonly DailyHeartRate[], sleepAvg: ReadonlyMap<DateKey, number>): HeartRateDay[];
 // importWindow.ts
 export interface HealthConnectCursor { v: 1; syncedThrough: DateKey; history: boolean }
 export function parseCursor(raw: string | null): HealthConnectCursor | null;
@@ -298,10 +296,10 @@ export function chunkRange(range: DateRange, days: number): DateRange[];
 ```
 
 **Parsing rules** (fixtures show the library's real shapes: group results `{ result: { COUNT_TOTAL, dataOrigins }, startTime: '2026-11-12T00:00', endTime }`; sleep and body records carry `metadata: { id, dataOrigin, lastModifiedTime }`):
+- `parseDailyHeartRate` rounds min and max to integers and avg to 1 decimal; `DailyHeartRate` maps 1:1 onto `HeartRateDay`.
 - A day is the first 10 characters of the group `startTime`, which must be a valid `DateKey`. A group whose `dataOrigins` is missing or empty yields **no item** (not 0, not counted as rejected). A group with origins but a non-finite or negative value is rejected. Steps are rounded to an integer; distance is `DISTANCE.inMeters`; kcal values are `…inKilocalories`.
 - Sleep: the record needs `metadata.id`, ISO `startTime` and `endTime`. Unknown stage numbers map to `unknown`; stages with bad times are dropped, not the record.
 - Body records: `hcId` is `metadata.id`; `origin` is `metadata.dataOrigin` (missing becomes `''`); value is `weight.inKilograms` or `percentage`.
-- `parseAverageHeartRate` reads `BPM_AVG` from an aggregate result and returns null when `MEASUREMENTS_COUNT` is 0 or missing.
 
 **`buildWeighIns` algorithm** (the part the tests alone do not give):
 1. Split weights by origin: MovingLife records are candidates; all others add to `ignored`. Weights outside 20–400 kg add to `implausible` and are dropped.
@@ -311,7 +309,6 @@ export function chunkRange(range: DateRange, days: number): DateRange[];
 
 **Other algorithms:**
 - `summariseSleep`: stage totals follow Ruling 6; `wakeDate = localDateKey(endAt)`; `hasStages` is whether any stage with a known type exists; `lightS`/`deepS`/`remS` are null when `hasStages` is false.
-- `buildHeartRateDays`: one `HeartRateDay` per daily aggregate (`minBpm`/`maxBpm` rounded, `avgBpm` to 1 decimal), `asleepAvgBpm` from the map or null. A day only in the map is dropped.
 - `planImport`: `full` when the cursor is null, or `historyGranted` is true and `cursor.history` is false; its range starts at `earliest` (or `today − 30 days` when null) and ends at `today + 1`. Otherwise `incremental`, starting at `cursor.syncedThrough − WINDOW_DAYS_BACK`. `parseCursor` returns null for anything malformed.
 - `chunkRange`: consecutive ranges of at most `days` days, covering the input exactly, none empty.
 
@@ -319,7 +316,6 @@ export function chunkRange(range: DateRange, days: number): DateRange[];
 - `availability`: `getSdkStatus()` → `SDK_AVAILABLE` (3) → `available`, `SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED` (2) → `update_required`, `SDK_UNAVAILABLE` (1) → `not_installed` on Android 13 and below, otherwise `unavailable`; any thrown error → `unavailable`. Call `initialize()` once before the first read; a false result means `unavailable`.
 - `getAccess`/`requestAccess`: compare granted `recordType`s with `READ_RECORD_TYPES`; `history` is true when `getGrantedPermissions()` lists `ReadHealthDataHistory`. If the probe (Task 22) showed it is not listed, derive `history` from `earliestDate()` being older than 29 days instead, and say so in a comment.
 - `dailyValues`/`dailyHeartRate`: `aggregateGroupByPeriod({ recordType, timeRangeFilter: { operator: 'between', startTime, endTime }, timeRangeSlicer: { period: 'DAYS', length: 1 }, dataOriginFilter: [SAMSUNG_HEALTH_ORIGIN] })`. `startTime`/`endTime` are the UTC instants of local midnight of `from` and `toExclusive` (the library converts them back to local time).
-- `averageHeartRate`: `aggregateRecord` over the session's instants, Samsung filter.
 - `sleepRecords`: `pageThrough` over `readRecords('SleepSession', …)` with the Samsung filter and a time range padded 1 day each side, then keep sessions whose `localDateKey(endAt)` is inside the range.
 - `bodyRecords`: `pageThrough` over `readRecords` for the record type, no origin filter, time `after 2000-01-01T00:00:00Z`.
 - `earliestDate`: for each of the six interval types, `readRecords` ascending, `pageSize: 1`, Samsung filter; the minimum local day.
@@ -355,7 +351,6 @@ test('a session without stages counts its whole length as asleep and has null st
 test('a session ending after local midnight belongs to the day it ends');
 test('the night ending on the DST change (2026-11-01) keeps wake date 2026-11-01');
 test('end before start gives null');
-test('heart-rate days keep only dates with a daily aggregate');
 // importWindow.test.ts
 test('no cursor is a full import from the earliest record to tomorrow');
 test('no data at all falls back to the last 30 days');
@@ -402,7 +397,7 @@ export interface SyncRunResult { /* existing fields */ healthConnect: HealthConn
 **`syncHealthConnect` order** (the cursor is saved only at the end, so an error changes nothing):
 1. `availability()` ≠ `available` → `not_connected`. `getAccess()`; `readAll` false → `not_connected` with `no_permission`. Neither records an error.
 2. `today = localDateKey(now)`, cursor from `syncState.get('health_connect')`, `earliest` only when needed (a full import), `planImport`.
-3. For each `chunkRange(plan.range, CHUNK_DAYS)`: the four `dailyValues`, `dailyHeartRate`, `sleepRecords`. Merge the four kinds into `ActivityDay` rows (one per date seen; unseen kinds null). Convert sleep with `summariseSleep`, then for each session call `averageHeartRate` and compute each wake date's duration-weighted mean over its sessions → `buildHeartRateDays`.
+3. For each `chunkRange(plan.range, CHUNK_DAYS)`: the four `dailyValues`, `dailyHeartRate`, `sleepRecords`. Merge the four kinds into `ActivityDay` rows (one per date seen; unseen kinds null). Convert sleep with `summariseSleep`. Heart-rate rows come straight from `dailyHeartRate`.
 4. `bodyRecords('weight')`, `bodyRecords('bodyFat')` → `buildWeighIns`.
 5. `repository.applyImport({ from: plan.range.from, … })` in one transaction.
 6. `syncState.recordSuccess('health_connect', nowIso, JSON.stringify({ v: 1, syncedThrough: today, history: access.history }))`.
@@ -425,7 +420,6 @@ test('unavailable Health Connect returns not_connected with the reason');
 test('a gateway error returns error, records it, leaves earlier data and keeps the old cursor');
 test('a failure in the database write rolls back and leaves the cursor unsaved');
 test('weigh-ins and watch body fat are rebuilt from the full body record lists every run');
-test('resting heart rate is the duration-weighted mean of the sessions that end that day');
 test('long ranges are fetched in chunks of at most 92 days');
 // syncCoordinator.test.ts
 test('a run without a Lyfta key still syncs Health Connect');
@@ -517,7 +511,7 @@ export interface SleepConsistency { averageBedtimeMin: number; averageWakeMin: n
 export function sleepConsistency(nights: readonly SleepNight[]): SleepConsistency | null;    // null under 3 nights
 export function formatClock(minutes: number): string;                                          // minutes after local midnight, '23:40'
 // heartRate.ts
-export interface HeartRateSummary { points: SeriesPoint[]; lowest: number | null; average: number | null; highest: number | null; asleepAverage: number | null }
+export interface HeartRateSummary { points: SeriesPoint[]; lowest: number | null; average: number | null; highest: number | null }
 export function buildHeartRateSummary(days: readonly HeartRateDay[], range: RangeKind, today: DateKey): HeartRateSummary;
 // units.ts
 export function formatDistance(meters: number, unit: WeightUnit): string;                      // 'lb' → miles, 'kg' → km, one decimal
@@ -530,7 +524,7 @@ export function useActivityData(): AsyncState<ActivityData>;   // re-read when d
 - `buildActivitySeries`: **Day** range gives one point per day for the last 30 days ending today (today included, partial), gaps zero-filled with `fillEmptyBuckets`. **Week/Month** use `bucketSeries(..., 'mean')` over completed days only (date < today, value non-null), zero-filled over the last 12 weeks/months ending with the bucket that holds today (Ruling 11). `today` is today's value (null when no row). `averagePerDay` and `bestDay` cover completed days inside the visible span and are null with none.
 - `buildSleepNights`: sums sessions sharing a `wakeDate`; stage columns are the sums of the sessions that have stages, or null if none has; `bedtime` is the earliest `startAt`, `wakeTime` the latest `endAt`.
 - `sleepConsistency`: bedtime minutes are measured from 18:00 local so a bedtime of 23:30 and one of 00:30 differ by 60, not 1380; `bedtimeSpreadMin` is the population standard deviation; averages are returned as minutes after local midnight (`formatClock` handles wrap). Uses the visible nights (last 14).
-- `buildHeartRateSummary`: line points are the daily `avgBpm` (mean per bucket for week/month, same span and zero-fill rule is **not** used: empty buckets are simply absent, since 0 bpm is meaningless); `lowest` is the minimum `minBpm`, `highest` the maximum `maxBpm`, `average` the mean of `avgBpm`, `asleepAverage` the mean of the non-null `asleepAvgBpm`, all over the visible span.
+- `buildHeartRateSummary`: line points are the daily `avgBpm` (mean per bucket for week/month, same span and zero-fill rule is **not** used: empty buckets are simply absent, since 0 bpm is meaningless); `lowest` is the minimum `minBpm`, `highest` the maximum `maxBpm`, `average` the mean of `avgBpm`, all over the visible span.
 
 **Screen** (top to bottom; follows `docs/design/ui-guidelines.md` and the Workouts screens' structure).
 1. `ScreenHeader` "Activity"; subtitle "From Samsung Health · " plus the Health Connect status line (reuse `describeHealthConnectStatus`).
@@ -539,7 +533,7 @@ export function useActivityData(): AsyncState<ActivityData>;   // re-read when d
 4. **Distance** card, same layout with `formatDistance`.
 5. **Calories** card: a two-option `SegmentedControl` "Active | Total" above the same layout. Caption notes that Total includes resting burn.
 6. **Sleep** card: last night's asleep time large, a stacked stage bar (light `bar`, deep `accent`, REM `statusLow`, awake `track`) with a text legend of durations so colour is never the only signal, a bar `TrendChart` of nightly asleep hours for the range, a `StatGroup` (Average, Bedtime ±spread, Wake) from `sleepConsistency`, and a list of the last 7 nights ("Mon 9 Nov · 7h 12m · Deep 1h 20m"). Nights without stages show duration only.
-7. **Heart rate** card: line `TrendChart` of daily average, `StatGroup` Lowest / Average / Highest, and a row "Asleep avg" with `asleepAverage`.
+7. **Heart rate** card: line `TrendChart` of daily average, `StatGroup` Lowest / Average / Highest.
 - **States.** Health Connect not connected: `EmptyState` "Connect Health Connect" with an action to Settings. Connected, sync running and no rows: `ActivitySkeleton`. Connected with no rows: `EmptyState` "No Samsung Health data yet" with "Sync now". Load error: `EmptyState` with "Try again". A card with no data in its own series shows a one-line "No data yet" in place of its chart, never a NaN axis. Pull to refresh runs `sync.run()`. Every chart has an `accessibilityLabel` that states range, average and latest value.
 
 - [ ] **Step 1: Write the failing tests**
@@ -562,7 +556,6 @@ test('formatClock wraps past midnight and pads');
 // heartRate.test.ts
 test('lowest, highest and average come from the visible span only');
 test('empty buckets are absent, not zero');
-test('asleepAverage ignores null days and is null with none');
 // units.test.ts
 test('formatDistance shows miles for lb and kilometres for kg with one decimal');
 test('formatDistance of 0 and of a sub-100 m distance does not show -0 or NaN');
@@ -603,7 +596,7 @@ adb -s 59180DLCQ00B36 install -r android/app/build/outputs/apk/release/app-relea
 ```
 Never use `expo run:android --variant release`. Expected: install succeeds as an update (the template signs release with the debug keystore); the app opens without Metro; Activity, Workouts and Settings load with the data; a pull-to-refresh succeeds; logcat has no `ReactNativeJS` errors. If zod throws under release Hermes, apply Plan 2's `z.config({ jitless: true })` fix to the new parsers, rerun the gate, rebuild and repeat. Leave the release build installed.
 
-- [ ] **Step 5: Owner confirmations (pending list in the report).** Distance units (miles with a pound account); the "Asleep avg" label; the Activity layout; whether Samsung's step total matches the watch for a day they remember; the haptics on range changes.
+- [ ] **Step 5: Owner confirmations (pending list in the report).** The normal on-phone look check of the Activity layout (the layout itself is an owner decision, see Ruling 13); whether Samsung's step total matches the watch for a day they remember; the haptics on range changes.
 
 - [ ] **Step 6: Commit** fixes found in this task: "Fix issues found in Health Connect verification". Nothing is committed if there were none.
 
@@ -612,7 +605,7 @@ Never use `expo run:android --variant release`. Expected: install succeeds as an
 ## Notes for later plans
 
 - **Plan 4 (body).** Reads `scale_reading` and `legacy_body_value` through `listScaleReadings`; body fat for the legacy series is `legacy_body_value` metric `body_fat_pct` origin `movinglife`. The watch series is `watch_body_fat`. Day charts use the first reading of the local day. Dedupe across sources (BLE, Senssun) reuses `buildWeighIns`' match functions: lift them into a shared module then.
-- **Plan 6 (export).** Distance and sleep export in the same units as the screen. State "Asleep avg" is not a resting heart rate. Say which weeks use `same_day` dedupe if that rule is active.
+- **Plan 6 (export).** Distance and sleep export in the same units as the screen. Heart rate is daily min/avg/max only. Say which weeks use `same_day` dedupe if that rule is active.
 - **Plan 8 (today).** Today reads `listActivityDays` and sleep nights through the same domain models.
 
 ## Done when
