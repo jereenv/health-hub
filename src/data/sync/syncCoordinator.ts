@@ -55,6 +55,7 @@ export interface SyncCoordinator {
 }
 
 const SKIPPED = { status: 'skipped' } as const;
+const noop = (): void => {};
 
 function messageOf(error: unknown): string {
   return error instanceof Error && error.message !== '' ? error.message : 'Sync failed';
@@ -89,7 +90,9 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
 
   function enqueue<T>(task: () => Promise<T>): Promise<T> {
     const next = tail.then(task);
-    tail = next;
+    // Tasks are written never to reject, but if one ever did, chaining on the raw promise would
+    // make every later task fail too. The tail swallows the outcome; callers still get `next`.
+    tail = next.then(noop, noop);
     return next;
   }
 
@@ -127,43 +130,45 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
     await reparseAndRecord();
 
     // 2. Without a key there is nothing to ask Lyfta.
-    let apiKey: string | null;
+    let workoutsResult: LyftaSyncResult | null = null;
     try {
-      apiKey = await secrets.get(SECRET_KEYS.lyftaApiKey);
+      const apiKey = await secrets.get(SECRET_KEYS.lyftaApiKey);
+      if (apiKey === null || apiKey === '') return finish({ status: 'not_configured' }, SKIPPED);
     } catch (error) {
-      return finish({ status: 'error', message: messageOf(error) }, SKIPPED);
-    }
-    if (apiKey === null || apiKey === '') return finish({ status: 'not_configured' }, SKIPPED);
-
-    // 3. Re-check the account unit; a change means stored weights must be converted again.
-    try {
-      const { changed } = await refreshLyftaUnit({ client, settings });
-      if (changed) await reparseAndRecord();
-    } catch (error) {
-      if (error instanceof LyftaError && error.kind === 'unauthorized') {
-        try {
-          await syncState.recordError('lyfta', 'invalid_key', deps.now().toISOString());
-        } catch {
-          // Bookkeeping failed; the result still tells the caller the key was rejected.
-        }
-        return finish({ status: 'invalid_key' }, SKIPPED);
-      }
-      // Any other failure is left for `syncLyfta`, which records and reports it itself.
-    }
-
-    // 4. Workouts.
-    let workoutsResult: LyftaSyncResult;
-    try {
-      workoutsResult = await syncLyfta({
-        client,
-        workouts,
-        syncState,
-        settings,
-        secrets,
-        now: deps.now,
-      });
-    } catch (error) {
+      // No usable key, so no unit check or workouts sync; the later steps still follow their rules.
       workoutsResult = { status: 'error', message: messageOf(error) };
+    }
+
+    if (workoutsResult === null) {
+      // 3. Re-check the account unit; a change means stored weights must be converted again.
+      try {
+        const { changed } = await refreshLyftaUnit({ client, settings });
+        if (changed) await reparseAndRecord();
+      } catch (error) {
+        if (error instanceof LyftaError && error.kind === 'unauthorized') {
+          try {
+            await syncState.recordError('lyfta', 'invalid_key', deps.now().toISOString());
+          } catch {
+            // Bookkeeping failed; the result still tells the caller the key was rejected.
+          }
+          return finish({ status: 'invalid_key' }, SKIPPED);
+        }
+        // Any other failure is left for `syncLyfta`, which records and reports it itself.
+      }
+
+      // 4. Workouts.
+      try {
+        workoutsResult = await syncLyfta({
+          client,
+          workouts,
+          syncState,
+          settings,
+          secrets,
+          now: deps.now,
+        });
+      } catch (error) {
+        workoutsResult = { status: 'error', message: messageOf(error) };
+      }
     }
 
     // The first backfill detects the unit, so only now can it be parsed with and remembered.

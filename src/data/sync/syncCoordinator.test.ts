@@ -56,6 +56,7 @@ async function setup(options: { withKey?: boolean; unit?: string | null } = {}) 
     /** Blocks `listWorkouts` until released. */
     gate: null as Deferred | null,
     workoutsError: null as Error | null,
+    scheduleError: null as Error | null,
   };
   const client: LyftaClient = {
     async listWorkouts(call) {
@@ -67,6 +68,7 @@ async function setup(options: { withKey?: boolean; unit?: string | null } = {}) 
     },
     async listSchedule() {
       log.push('listSchedule');
+      if (state.scheduleError) throw state.scheduleError;
       return scheduleFixture;
     },
     getProfile: async () => ({}),
@@ -186,14 +188,18 @@ test('run while a resync is in flight returns the resync result', async () => {
 });
 
 test('resync clears both sync states and backfills', async () => {
-  const { sync, deps, log, workoutPages } = await setup();
+  const { sync, deps, log, workoutPages, state } = await setup();
   await sync.run();
   expect((await deps.syncState.get('lyfta')).lastSuccessAt).not.toBeNull();
   expect((await deps.syncState.get('lyfta_schedule')).lastSuccessAt).not.toBeNull();
   log.length = 0;
   workoutPages.length = 0;
 
+  // A failing schedule sync keeps the last success it has, so null proves resync reset it.
+  state.scheduleError = new LyftaError('network', 'offline');
   const result = await sync.resync();
+  expect((await deps.syncState.get('lyfta_schedule')).lastSuccessAt).toBeNull();
+  expect(result.schedule).toEqual({ status: 'error', message: 'offline' });
   expect(result.workouts).toMatchObject({ status: 'ok', mode: 'backfill' });
   expect(workoutPages[0]).not.toHaveProperty('from');
   expect(workoutPages[0]).not.toHaveProperty('to');
@@ -295,15 +301,18 @@ test('snapshot is stable between changes and bumps dataVersion after each run an
 });
 
 describe('a failing re-parse is not fatal', () => {
-  const failingRaw = (deps: Awaited<ReturnType<typeof setup>>['deps']) => ({
-    ...deps.workouts,
-    listRaw: () => Promise.reject(new Error('db down')),
-  });
+  const failingRaw = (deps: Awaited<ReturnType<typeof setup>>['deps']) => {
+    const listRaw = jest.fn(() => Promise.reject(new Error('db down')));
+    return { workouts: { ...deps.workouts, listRaw }, listRaw };
+  };
 
   test('before the sync: workouts and schedule still sync normally', async () => {
     const { deps, log } = await setup();
-    const sync = createSyncCoordinator({ ...deps, workouts: failingRaw(deps) });
+    const failing = failingRaw(deps);
+    const sync = createSyncCoordinator({ ...deps, workouts: failing.workouts });
     const result = await sync.run();
+    // Thrown once before the sync and once after it; neither changed the results.
+    expect(failing.listRaw).toHaveBeenCalledTimes(2);
     expect(result.workouts).toMatchObject({ status: 'ok' });
     expect(result.schedule).toMatchObject({ status: 'ok' });
     expect(result.reparsed).toBeNull();
@@ -313,8 +322,11 @@ describe('a failing re-parse is not fatal', () => {
 
   test('after a successful sync: workouts stay ok', async () => {
     const { deps } = await setup({ unit: null });
-    const sync = createSyncCoordinator({ ...deps, workouts: failingRaw(deps) });
+    const failing = failingRaw(deps);
+    const sync = createSyncCoordinator({ ...deps, workouts: failing.workouts });
     const result = await sync.run();
+    // No unit yet, so the first re-parse returns early; only the one after the sync reads raw rows.
+    expect(failing.listRaw).toHaveBeenCalledTimes(1);
     expect(result.workouts).toMatchObject({ status: 'ok', mode: 'backfill' });
     expect(result.reparsed).toBeNull();
   });
@@ -334,16 +346,20 @@ describe('never rejects', () => {
     expect(good).toHaveBeenCalledTimes(3);
   });
 
-  test('when the secret store throws', async () => {
-    const { deps } = await setup();
+  test('when the secret store throws: later steps still run', async () => {
+    const { deps, log } = await setup();
     const secrets: SecretStore = {
       get: () => Promise.reject(new Error('keychain')),
       set: async () => {},
       delete: async () => {},
     };
-    const sync = createSyncCoordinator({ ...deps, secrets });
+    const reload = jest.fn(async () => {});
+    const sync = createSyncCoordinator({ ...deps, secrets, preferences: { reload } });
     const result = await sync.run();
     expect(result.workouts).toEqual({ status: 'error', message: 'keychain' });
+    expect(result.schedule).toMatchObject({ status: 'ok' });
+    expect(log).toEqual(['listSchedule']);
+    expect(reload).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(result)).not.toContain('test-key');
   });
 
