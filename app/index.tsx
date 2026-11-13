@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,6 +30,8 @@ export default function Index() {
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<LyftaSyncResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const syncInFlight = useRef(false);
 
   const load = useCallback(async (): Promise<Snapshot> => {
     const [key, unitSetting, count, state, recent] = await Promise.all([
@@ -73,32 +75,52 @@ export default function Index() {
     };
   }, [load]);
 
-  const saveKey = async () => {
-    const trimmed = keyInput.trim();
-    if (trimmed === '') return;
-    await secrets.set(SECRET_KEYS.lyftaApiKey, trimmed);
-    setKeyInput('');
-    await refresh();
+  /** Runs a button handler, showing only the error message on screen if it fails. */
+  const runAction = async (action: () => Promise<void>) => {
+    try {
+      await action();
+      setActionError(null);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Action failed');
+    }
   };
 
-  const removeKey = async () => {
-    await secrets.delete(SECRET_KEYS.lyftaApiKey);
-    await refresh();
-  };
+  const saveKey = () =>
+    runAction(async () => {
+      const trimmed = keyInput.trim();
+      if (trimmed === '') return;
+      // Clear first so the key never stays in the field, even if storing it fails.
+      setKeyInput('');
+      await secrets.set(SECRET_KEYS.lyftaApiKey, trimmed);
+      await refresh();
+    });
 
-  const chooseUnit = async (unit: WeightUnit) => {
-    await settings.set('lyfta.weightUnit', unit);
-    await refresh();
-  };
+  const removeKey = () =>
+    runAction(async () => {
+      await secrets.delete(SECRET_KEYS.lyftaApiKey);
+      await refresh();
+    });
+
+  const chooseUnit = (unit: WeightUnit) =>
+    runAction(async () => {
+      await settings.set('lyfta.weightUnit', unit);
+      await refresh();
+    });
 
   const sync = async () => {
+    // A ref, not state: state only updates after a re-render, so two quick taps could both pass.
+    if (syncInFlight.current) return;
+    syncInFlight.current = true;
     setSyncing(true);
-    try {
-      setResult(await lyftaSync.run());
-    } finally {
-      setSyncing(false);
+    await runAction(async () => {
+      try {
+        setResult(await lyftaSync.run());
+      } finally {
+        syncInFlight.current = false;
+        setSyncing(false);
+      }
       await refresh();
-    }
+    });
   };
 
   return (
@@ -139,6 +161,7 @@ export default function Index() {
         <Text>Last success: {snapshot?.syncState.lastSuccessAt ?? 'never'}</Text>
         <Text>Last error: {snapshot?.syncState.lastError ?? 'none'}</Text>
         {loadError !== null && <Text>Load error: {loadError}</Text>}
+        {actionError !== null && <Text>Error: {actionError}</Text>}
 
         <Text style={styles.section}>Newest {RECENT_COUNT}</Text>
         {snapshot?.recent.map((workout) => (
