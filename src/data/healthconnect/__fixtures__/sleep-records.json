@@ -1,0 +1,28 @@
+[
+  {
+    "startTime": "2026-11-12T03:30:00Z",
+    "endTime": "2026-11-12T11:30:00Z",
+    "metadata": {
+      "id": "sleep-1",
+      "dataOrigin": "com.sec.android.app.shealth",
+      "lastModifiedTime": "2026-11-12T12:00:00Z"
+    },
+    "stages": [
+      { "startTime": "2026-11-12T03:30:00Z", "endTime": "2026-11-12T04:00:00Z", "stage": 1 },
+      { "startTime": "2026-11-12T04:00:00Z", "endTime": "2026-11-12T07:00:00Z", "stage": 4 },
+      { "startTime": "2026-11-12T07:00:00Z", "endTime": "2026-11-12T09:00:00Z", "stage": 5 },
+      { "startTime": "2026-11-12T09:00:00Z", "endTime": "2026-11-12T11:30:00Z", "stage": 99 },
+      { "startTime": "garbage", "endTime": "2026-11-12T11:30:00Z", "stage": 6 }
+    ]
+  },
+  {
+    "startTime": "2026-11-11T20:00:00Z",
+    "endTime": "2026-11-11T21:00:00Z",
+    "metadata": { "id": "sleep-2", "dataOrigin": "com.sec.android.app.shealth" }
+  },
+  {
+    "startTime": "2026-11-10T20:00:00Z",
+    "endTime": "2026-11-10T21:00:00Z",
+    "metadata": { "dataOrigin": "com.sec.android.app.shealth" }
+  }
+]

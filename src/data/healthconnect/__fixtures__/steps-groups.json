@@ -1,0 +1,22 @@
+[
+  {
+    "result": { "COUNT_TOTAL": 1234.4, "dataOrigins": ["com.sec.android.app.shealth"] },
+    "startTime": "2026-11-10T00:00",
+    "endTime": "2026-11-11T00:00"
+  },
+  {
+    "result": { "COUNT_TOTAL": 0, "dataOrigins": ["com.sec.android.app.shealth"] },
+    "startTime": "2026-11-11T00:00",
+    "endTime": "2026-11-12T00:00"
+  },
+  {
+    "result": { "dataOrigins": [] },
+    "startTime": "2026-11-12T00:00",
+    "endTime": "2026-11-13T00:00"
+  },
+  {
+    "result": { "COUNT_TOTAL": 7, "dataOrigins": ["com.sec.android.app.shealth"] },
+    "startTime": "2026-11-13T00:00",
+    "endTime": "2026-11-14T00:00"
+  }
+]

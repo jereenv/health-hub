@@ -1,0 +1,32 @@
+{
+  "weight": [
+    {
+      "time": "2026-11-12T12:00:00Z",
+      "weight": { "inKilograms": 80.4 },
+      "metadata": {
+        "id": "w-1",
+        "dataOrigin": "com.moving.movinglife",
+        "lastModifiedTime": "2026-11-12T12:00:01Z"
+      }
+    },
+    {
+      "time": "2026-11-12T13:00:00Z",
+      "weight": { "inKilograms": 80.2 },
+      "metadata": { "id": "w-2" }
+    },
+    {
+      "time": "2026-11-12T14:00:00Z",
+      "weight": { "inKilograms": "heavy" },
+      "metadata": { "id": "w-3" }
+    },
+    { "time": "2026-11-12T15:00:00Z", "weight": { "inKilograms": 80 }, "metadata": {} }
+  ],
+  "bodyFat": [
+    {
+      "time": "2026-11-12T12:01:00Z",
+      "percentage": 18.5,
+      "metadata": { "id": "f-1", "dataOrigin": "com.moving.movinglife" }
+    },
+    { "time": "2026-11-12T12:02:00Z", "percentage": null, "metadata": { "id": "f-2" } }
+  ]
+}

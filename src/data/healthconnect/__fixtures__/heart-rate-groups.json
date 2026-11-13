@@ -1,0 +1,22 @@
+[
+  {
+    "result": {
+      "BPM_MIN": 48.4,
+      "BPM_AVG": 71.26,
+      "BPM_MAX": 151.6,
+      "dataOrigins": ["com.sec.android.app.shealth"]
+    },
+    "startTime": "2026-11-10T00:00",
+    "endTime": "2026-11-11T00:00"
+  },
+  {
+    "result": { "dataOrigins": [] },
+    "startTime": "2026-11-11T00:00",
+    "endTime": "2026-11-12T00:00"
+  },
+  {
+    "result": { "dataOrigins": ["com.sec.android.app.shealth"] },
+    "startTime": "2026-11-12T00:00",
+    "endTime": "2026-11-13T00:00"
+  }
+]
