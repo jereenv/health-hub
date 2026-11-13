@@ -54,7 +54,8 @@ function retryAfterMs(response: Response): number | null {
 export function createLyftaClient(deps: LyftaClientDeps): LyftaClient {
   const baseUrl = deps.baseUrl ?? LYFTA_BASE_URL;
   const now = deps.now ?? Date.now;
-  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep =
+    deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const minIntervalMs = deps.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS;
   const maxRetries = deps.maxRetries ?? DEFAULT_MAX_RETRIES;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -74,7 +75,10 @@ export function createLyftaClient(deps: LyftaClientDeps): LyftaClient {
    * Performs one request and reads the whole body before the timeout is cleared, so the timeout
    * also covers a server that sends headers and then stalls. Any failure here is a network error.
    */
-  async function fetchOnce(url: string, apiKey: string): Promise<{ response: Response; body: string }> {
+  async function fetchOnce(
+    url: string,
+    apiKey: string,
+  ): Promise<{ response: Response; body: string }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -105,7 +109,11 @@ export function createLyftaClient(deps: LyftaClientDeps): LyftaClient {
 
       if (response.status === 429) {
         if (attempt >= maxRetries) {
-          throw new LyftaError('rate_limited', 'Lyfta rate limit still exceeded after retries', 429);
+          throw new LyftaError(
+            'rate_limited',
+            'Lyfta rate limit still exceeded after retries',
+            429,
+          );
         }
         await sleep(retryAfterMs(response) ?? INITIAL_BACKOFF_MS * 2 ** attempt);
         continue;
@@ -117,19 +125,28 @@ export function createLyftaClient(deps: LyftaClientDeps): LyftaClient {
         throw new LyftaError('bad_request', 'Lyfta rejected the request as invalid', 400);
       }
       if (!response.ok) {
-        throw new LyftaError('server', `Lyfta responded with status ${response.status}`, response.status);
+        throw new LyftaError(
+          'server',
+          `Lyfta responded with status ${response.status}`,
+          response.status,
+        );
       }
 
       try {
         return JSON.parse(body) as unknown;
       } catch {
-        throw new LyftaError('invalid_response', 'Lyfta returned a body that is not valid JSON', response.status);
+        throw new LyftaError(
+          'invalid_response',
+          'Lyfta returned a body that is not valid JSON',
+          response.status,
+        );
       }
     }
   }
 
   return {
-    listWorkouts: ({ page, limit, from, to }) => request('/api/v1/workouts', { page, limit, from, to }),
+    listWorkouts: ({ page, limit, from, to }) =>
+      request('/api/v1/workouts', { page, limit, from, to }),
     listSchedule: ({ from, to, includeCompleted }) =>
       request('/api/v1/schedule', { from, to, include_completed: includeCompleted }),
     getProfile: () => request('/api/v1/profile'),

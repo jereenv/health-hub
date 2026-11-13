@@ -24,7 +24,7 @@ module.exports = [
     },
   },
   {
-    // The headless demo is a console program; logging is its whole point.
+    // Scripts are console programs; logging is their whole point.
     files: ['scripts/**/*.ts'],
     rules: {
       'no-console': 'off',

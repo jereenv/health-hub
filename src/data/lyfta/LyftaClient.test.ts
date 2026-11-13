@@ -34,7 +34,9 @@ function setup(
   return { client, fetchFn, sleeps };
 }
 
-async function kindOf(promise: Promise<unknown>): Promise<{ kind: LyftaErrorKind; status?: number }> {
+async function kindOf(
+  promise: Promise<unknown>,
+): Promise<{ kind: LyftaErrorKind; status?: number }> {
   try {
     await promise;
   } catch (error) {
@@ -48,11 +50,18 @@ describe('createLyftaClient', () => {
   test('sends the bearer key and query parameters', async () => {
     const { client, fetchFn } = setup([jsonResponse({ workouts: [] })]);
 
-    const result = await client.listWorkouts({ page: 2, limit: 100, from: '2026-11-01', to: '2026-11-14' });
+    const result = await client.listWorkouts({
+      page: 2,
+      limit: 100,
+      from: '2026-11-01',
+      to: '2026-11-14',
+    });
 
     expect(result).toEqual({ workouts: [] });
     const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://my.lyfta.app/api/v1/workouts?page=2&limit=100&from=2026-11-01&to=2026-11-14');
+    expect(url).toBe(
+      'https://my.lyfta.app/api/v1/workouts?page=2&limit=100&from=2026-11-01&to=2026-11-14',
+    );
     expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${KEY}`);
   });
 
@@ -86,7 +95,10 @@ describe('createLyftaClient', () => {
 
   test('waits for Retry-After on 429 then succeeds', async () => {
     const { client, sleeps } = setup(
-      [new Response('slow down', { status: 429, headers: { 'Retry-After': '5' } }), jsonResponse({ ok: true })],
+      [
+        new Response('slow down', { status: 429, headers: { 'Retry-After': '5' } }),
+        jsonResponse({ ok: true }),
+      ],
       { minIntervalMs: 0 },
     );
 
