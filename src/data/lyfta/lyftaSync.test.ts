@@ -1,7 +1,7 @@
 import { createSqliteSettingsRepository } from '@/data/settings/SettingsRepository';
 import { createSqliteSyncStateRepository } from '@/data/sync/SyncStateRepository';
 import { createSqliteWorkoutRepository } from '@/data/workouts/sqliteWorkoutRepository';
-import { SECRET_KEYS } from '@/data/secrets/SecretStore';
+import { SECRET_KEYS, type SecretStore } from '@/data/secrets/SecretStore';
 import { InMemorySecretStore } from '@/test-support/InMemorySecretStore';
 import { openTestDatabase } from '@/test-support/sqljsDatabase';
 
@@ -195,4 +195,33 @@ test('concurrent runs share one sync', async () => {
 
   await runner.run(); // settled, so a new sync starts
   expect(state.calls.filter((c) => c.page === 1)).toHaveLength(2);
+});
+
+test('keeps stored workouts that now fail validation instead of deleting them', async () => {
+  const { deps, state, workouts } = await setup([rawWorkout(1, 1), rawWorkout(2, 2)]);
+  await syncLyfta(deps);
+
+  const broken = { id: 1, workout_perform_date: state.workouts[0].workout_perform_date };
+  state.workouts = [broken, rawWorkout(2, 2)];
+  expect(await syncLyfta(deps)).toMatchObject({ status: 'ok', mode: 'incremental', deleted: 0, skipped: 1 });
+  expect(await workouts.get(1)).not.toBeNull();
+});
+
+test('resolves with an error, without the key, when the secret store fails', async () => {
+  const { deps } = await setup([]);
+  const secrets: SecretStore = {
+    get: () => Promise.reject(new Error('keychain unavailable')),
+    set: async () => {},
+    delete: async () => {},
+  };
+  const result = await syncLyfta({ ...deps, secrets });
+  expect(result).toEqual({ status: 'error', message: 'keychain unavailable' });
+  expect(JSON.stringify(result)).not.toContain('test-key');
+});
+
+test('still resolves when recording the error also fails', async () => {
+  const { deps, state } = await setup([rawWorkout(1, 1)]);
+  state.failure = () => new LyftaError('network', 'offline');
+  const syncState = { ...deps.syncState, recordError: () => Promise.reject(new Error('db down')) };
+  await expect(syncLyfta({ ...deps, syncState })).resolves.toEqual({ status: 'error', message: 'offline' });
 });

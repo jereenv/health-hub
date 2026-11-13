@@ -71,10 +71,10 @@ interface Totals {
 export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
   const { client, workouts, syncState, settings, secrets } = deps;
 
-  const apiKey = await secrets.get(SECRET_KEYS.lyftaApiKey);
-  if (apiKey === null || apiKey === '') return { status: 'not_configured' };
-
   try {
+    const apiKey = await secrets.get(SECRET_KEYS.lyftaApiKey);
+    if (apiKey === null || apiKey === '') return { status: 'not_configured' };
+
     const unit: WeightUnit = (await settings.get('lyfta.weightUnit')) === 'lb' ? 'lb' : 'kg';
     const state = await syncState.get('lyfta');
     const totals: Totals = { inserted: 0, updated: 0, skipped: 0 };
@@ -113,22 +113,28 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
     const window = incrementalWindow(new Date(state.lastSuccessAt), deps.now());
     const returnedIds = await fetchPages(1, window, async () => {});
     // Only reached when every page succeeded, so a partial response can never delete data.
-    const deleted = await workouts.deleteMissingInRange(
-      `${window.from}T00:00:00.000Z`,
-      `${window.to}T23:59:59.999Z`,
-      returnedIds,
-    );
+    // Skipped (unparseable) workouts have no id in `returnedIds`, so deleting while any were
+    // skipped could remove stored workouts that still exist in Lyfta; retry once they parse.
+    const deleted =
+      totals.skipped > 0
+        ? 0
+        : await workouts.deleteMissingInRange(
+            `${window.from}T00:00:00.000Z`,
+            `${window.to}T23:59:59.999Z`,
+            returnedIds,
+          );
     await syncState.recordSuccess('lyfta', syncedAt, null);
     return { status: 'ok', mode: 'incremental', deleted, ...totals };
   } catch (error) {
     const errorAt = deps.now().toISOString();
-    if (error instanceof LyftaError && error.kind === 'unauthorized') {
-      await syncState.recordError('lyfta', 'invalid_key', errorAt);
-      return { status: 'invalid_key' };
-    }
+    const isInvalidKey = error instanceof LyftaError && error.kind === 'unauthorized';
     const message = error instanceof Error && error.message !== '' ? error.message : FALLBACK_ERROR_MESSAGE;
-    await syncState.recordError('lyfta', message, errorAt);
-    return { status: 'error', message };
+    try {
+      await syncState.recordError('lyfta', isInvalidKey ? 'invalid_key' : message, errorAt);
+    } catch {
+      // Bookkeeping failed too; still report the original outcome rather than rejecting.
+    }
+    return isInvalidKey ? { status: 'invalid_key' } : { status: 'error', message };
   }
 }
 
