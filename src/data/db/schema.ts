@@ -41,4 +41,10 @@ export const MIGRATIONS: readonly Migration[] = [
   ALTER TABLE workout ADD COLUMN duration_s INTEGER;
   ALTER TABLE workout DROP COLUMN total_volume_kg;
   `,
+  // v4 — persists sync health for the UI: how many workouts the last run could not read, and why
+  // deletions are paused (JSON DeletionPause, null when they are not).
+  `
+  ALTER TABLE sync_state ADD COLUMN last_skipped INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE sync_state ADD COLUMN deletion_pause TEXT;
+  `,
 ];

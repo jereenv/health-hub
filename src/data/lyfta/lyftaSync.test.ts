@@ -1,5 +1,8 @@
 import { createSqliteSettingsRepository } from '@/data/settings/SettingsRepository';
-import { createSqliteSyncStateRepository } from '@/data/sync/SyncStateRepository';
+import {
+  createSqliteSyncStateRepository,
+  type DeletionPause,
+} from '@/data/sync/SyncStateRepository';
 import { createSqliteWorkoutRepository } from '@/data/workouts/sqliteWorkoutRepository';
 import { SECRET_KEYS, type SecretStore } from '@/data/secrets/SecretStore';
 import { InMemorySecretStore } from '@/test-support/InMemorySecretStore';
@@ -8,7 +11,14 @@ import { openTestDatabase } from '@/test-support/sqljsDatabase';
 import { LyftaError } from './LyftaError';
 import type { LyftaClient } from './LyftaClient';
 import { LB_TO_KG } from './parseWorkouts';
-import { createLyftaSyncRunner, incrementalWindow, LYFTA_PAGE_SIZE, syncLyfta } from './lyftaSync';
+import {
+  createLyftaSyncRunner,
+  incrementalWindow,
+  LYFTA_MAX_PAGES,
+  LYFTA_PAGE_SIZE,
+  pageCap,
+  syncLyfta,
+} from './lyftaSync';
 
 const sandbox = require('@/data/lyfta/__fixtures__/sandbox-workouts.json');
 
@@ -40,6 +50,8 @@ function createFakeClient(initial: unknown[]) {
     progressCalls: 0,
     /** Which calendar day the server filters `from`/`to` on; defaults to the UTC day. */
     dayOf: ((iso: string) => iso.slice(0, 10)) as (iso: string) => string,
+    /** Replaces the page the server would return, e.g. to simulate a server that never ends. */
+    respond: null as ((call: Call, page: Record<string, unknown>) => unknown) | null,
   };
   const client: LyftaClient = {
     async listWorkouts(call) {
@@ -54,12 +66,14 @@ function createFakeClient(initial: unknown[]) {
       });
       matching.sort((a, b) => b.workout_perform_date.localeCompare(a.workout_perform_date));
       const start = (call.page - 1) * call.limit;
-      return {
+      const page = {
         ...sandbox,
         workouts: matching.slice(start, start + call.limit),
         current_page: call.page,
         total_pages: Math.max(1, Math.ceil(matching.length / call.limit)),
+        total_records: matching.length,
       };
+      return state.respond?.(call, page) ?? page;
     },
     listSchedule: async () => ({}),
     getProfile: async () => ({}),
@@ -113,6 +127,7 @@ test('backfills every page, then clears the cursor and records success', async (
     updated: 0,
     deleted: 0,
     skipped: 0,
+    deletionPause: null,
   });
   expect(state.calls).toEqual([1, 2, 3].map((page) => ({ page, limit: LYFTA_PAGE_SIZE })));
   expect(await workouts.count()).toBe(250);
@@ -433,5 +448,221 @@ describe('backfill resume and paging', () => {
       skipped: LYFTA_PAGE_SIZE,
     });
     expect(t.state.calls.map((c) => c.page)).toEqual([1, 2]);
+  });
+});
+
+test.each([
+  [150, 4],
+  [0, 2],
+  [null, LYFTA_MAX_PAGES],
+  [100000, LYFTA_MAX_PAGES],
+])('pageCap(%p) = %p', (totalRecords, cap) => {
+  expect(pageCap(totalRecords)).toBe(cap);
+});
+
+/** A server that claims 999 pages and always has workouts, but reports 150 records. */
+function neverEnding(state: ReturnType<typeof createFakeClient>['state']) {
+  state.respond = (call, page) => ({
+    ...page,
+    workouts: [rawWorkout(call.page, 30)],
+    total_pages: 999,
+    total_records: 150,
+  });
+}
+
+describe('page cap', () => {
+  test('stops a backfill whose server never reaches the last page', async () => {
+    const t = await setup([]);
+    neverEnding(t.state);
+    expect(await syncLyfta(t.deps)).toEqual({
+      status: 'error',
+      message: 'Lyfta returned more pages than expected',
+    });
+    expect(t.state.calls).toHaveLength(4);
+  });
+
+  test('caps the deletion-confirmation listing the same way', async () => {
+    const t = await setup([rawWorkout(1, 1)]);
+    await syncLyfta(t.deps);
+
+    t.state.workouts = [];
+    t.state.respond = (call, page) =>
+      call.from === undefined
+        ? {
+            ...page,
+            workouts: [rawWorkout(call.page + 100, 300)],
+            total_pages: 999,
+            total_records: 150,
+          }
+        : page;
+    t.state.calls.length = 0;
+    const result = await syncLyfta(t.deps);
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      deleted: 0,
+      deletionPause: { reason: 'error', candidateIds: [1], skipped: 0 },
+    });
+    expect(t.state.calls.filter((c) => c.from === undefined)).toHaveLength(4);
+    expect(await t.workouts.get(1)).not.toBeNull();
+  });
+});
+
+describe('paused deletions', () => {
+  const BAD = { id: 'not-a-number', workout_perform_date: '2026-11-11T10:00:00.000Z' };
+
+  /** Syncs workout 1, then makes Lyfta list only an unparseable workout, so 1 looks deleted. */
+  async function blockedByUnreadable() {
+    const t = await setup([rawWorkout(1, 1)]);
+    await syncLyfta(t.deps);
+    t.state.workouts = [BAD];
+    return t;
+  }
+
+  const unreadable: DeletionPause = { reason: 'unreadable', candidateIds: [1], skipped: 1 };
+
+  test('records the skipped count and an unreadable deletion pause', async () => {
+    const t = await setup([rawWorkout(1, 1)]);
+    await syncLyfta(t.deps);
+    t.state.workouts = [rawWorkout(1, 1), BAD];
+
+    const result = await syncLyfta(t.deps);
+    expect(result).toMatchObject({
+      status: 'ok',
+      skipped: 1,
+      deletionPause: { reason: 'unreadable', candidateIds: [], skipped: 1 },
+    });
+    expect(await t.syncState.get('lyfta')).toMatchObject({
+      lastSkipped: 1,
+      deletionPause: { reason: 'unreadable', candidateIds: [], skipped: 1 },
+    });
+  });
+
+  test('skips deletion confirmation in a run whose window skipped a workout', async () => {
+    const t = await setup([rawWorkout(1, 1), rawWorkout(2, 2)]);
+    await syncLyfta(t.deps);
+    t.state.workouts = [rawWorkout(1, 1), BAD];
+    t.state.calls.length = 0;
+
+    expect(await syncLyfta(t.deps)).toMatchObject({ deleted: 0 });
+    expect(t.state.calls.every((c) => c.from !== undefined)).toBe(true);
+    expect(await t.workouts.get(2)).not.toBeNull();
+  });
+
+  test('pauses with the candidate ids when the full listing has an unreadable row', async () => {
+    const t = await blockedByUnreadable();
+    t.state.dayOf = (iso) => (iso === BAD.workout_perform_date ? '2000-01-01' : iso.slice(0, 10));
+
+    const result = await syncLyfta(t.deps);
+    expect(result).toMatchObject({
+      status: 'ok',
+      deleted: 0,
+      skipped: 0,
+      deletionPause: unreadable,
+    });
+    expect(await t.workouts.count()).toBe(1);
+  });
+
+  test('does not repeat the full listing while the same candidates stay blocked', async () => {
+    const t = await blockedByUnreadable();
+    t.state.dayOf = (iso) => (iso === BAD.workout_perform_date ? '2000-01-01' : iso.slice(0, 10));
+    await syncLyfta(t.deps);
+
+    t.state.calls.length = 0;
+    const second = await syncLyfta(t.deps);
+    expect(t.state.calls.every((c) => c.from !== undefined)).toBe(true);
+    expect(second).toMatchObject({ deleted: 0, deletionPause: unreadable });
+    expect((await t.syncState.get('lyfta')).deletionPause).toEqual(unreadable);
+  });
+
+  test('retries the confirmation when the candidates change', async () => {
+    const t = await blockedByUnreadable();
+    t.state.dayOf = (iso) => (iso === BAD.workout_perform_date ? '2000-01-01' : iso.slice(0, 10));
+    await syncLyfta(t.deps);
+
+    await t.workouts.upsertMany(
+      [
+        {
+          workout: {
+            ...(await t.workouts.get(1))!,
+            lyftaId: 3,
+            performedAt: rawWorkout(3, 1).workout_perform_date,
+          },
+          rawJson: '{}',
+        },
+      ],
+      NOW.toISOString(),
+    );
+    t.state.calls.length = 0;
+    const result = await syncLyfta(t.deps);
+    expect(t.state.calls.some((c) => c.from === undefined)).toBe(true);
+    expect(result).toMatchObject({
+      deletionPause: { reason: 'unreadable', candidateIds: [1, 3], skipped: 1 },
+    });
+  });
+
+  test('retries after a confirmation that failed with an error', async () => {
+    const t = await setup([rawWorkout(1, 1)]);
+    await syncLyfta(t.deps);
+    t.state.workouts = [];
+    t.state.failure = (call) =>
+      call.from === undefined ? new LyftaError('network', 'offline') : null;
+
+    expect(await syncLyfta(t.deps)).toMatchObject({
+      deletionPause: { reason: 'error', candidateIds: [1], skipped: 0 },
+    });
+
+    t.state.failure = null;
+    t.state.calls.length = 0;
+    const retry = await syncLyfta(t.deps);
+    expect(t.state.calls.some((c) => c.from === undefined)).toBe(true);
+    expect(retry).toMatchObject({ deleted: 1, deletionPause: null });
+    expect(await t.workouts.count()).toBe(0);
+  });
+
+  test('a successful confirmation clears a stored pause', async () => {
+    const t = await blockedByUnreadable();
+    t.state.dayOf = (iso) => (iso === BAD.workout_perform_date ? '2000-01-01' : iso.slice(0, 10));
+    await syncLyfta(t.deps);
+
+    t.state.workouts = [];
+    t.state.dayOf = (iso) => iso.slice(0, 10);
+    // Same candidates, so the pause holds until they change; make the stored pause differ.
+    await t.syncState.recordSuccess('lyfta', NOW.toISOString(), null, {
+      skipped: 0,
+      deletionPause: { reason: 'error', candidateIds: [1], skipped: 0 },
+    });
+    expect(await syncLyfta(t.deps)).toMatchObject({ deleted: 1, deletionPause: null });
+    expect((await t.syncState.get('lyfta')).deletionPause).toBeNull();
+  });
+
+  test('a stored unreadable pause is cleared by a later run with no candidates', async () => {
+    const t = await setup([rawWorkout(1, 1)]);
+    await syncLyfta(t.deps);
+    await t.syncState.recordSuccess('lyfta', NOW.toISOString(), null, {
+      skipped: 1,
+      deletionPause: unreadable,
+    });
+
+    expect(await syncLyfta(t.deps)).toMatchObject({ skipped: 0, deletionPause: null });
+    expect(await t.syncState.get('lyfta')).toMatchObject({ lastSkipped: 0, deletionPause: null });
+  });
+
+  test('a backfill clears any deletion pause', async () => {
+    const t = await setup(manyWorkouts(3));
+    await t.syncState.saveCursor('lyfta', '1');
+    await t.syncState.recordError('lyfta', 'boom', NOW.toISOString());
+    expect(await syncLyfta(t.deps)).toMatchObject({ mode: 'backfill', deletionPause: null });
+    expect((await t.syncState.get('lyfta')).deletionPause).toBeNull();
+  });
+
+  test('an error keeps the stored deletion pause', async () => {
+    const t = await blockedByUnreadable();
+    t.state.dayOf = (iso) => (iso === BAD.workout_perform_date ? '2000-01-01' : iso.slice(0, 10));
+    await syncLyfta(t.deps);
+
+    t.state.failure = () => new LyftaError('network', 'offline');
+    expect(await syncLyfta(t.deps)).toMatchObject({ status: 'error' });
+    expect((await t.syncState.get('lyfta')).deletionPause).toEqual(unreadable);
   });
 });

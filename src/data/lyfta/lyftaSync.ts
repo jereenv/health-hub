@@ -1,7 +1,7 @@
 import type { SecretStore } from '@/data/secrets/SecretStore';
 import { SECRET_KEYS } from '@/data/secrets/SecretStore';
 import type { SettingsRepository } from '@/data/settings/SettingsRepository';
-import type { SyncStateRepository } from '@/data/sync/SyncStateRepository';
+import type { DeletionPause, SyncStateRepository } from '@/data/sync/SyncStateRepository';
 import type { WorkoutRepository } from '@/data/workouts/WorkoutRepository';
 import type { WeightUnit } from '@/domain/workouts/types';
 
@@ -12,6 +12,23 @@ import { parseWorkoutPage } from './parseWorkouts';
 
 /** Workouts requested per page; matches the largest page the Lyfta API serves. */
 export const LYFTA_PAGE_SIZE = 100;
+
+/** Hard ceiling on pages fetched in one listing, whatever the server claims. */
+export const LYFTA_MAX_PAGES = 200;
+/** Pages beyond the record count's own, tolerating records added while paging. */
+const PAGE_CAP_SLACK = 2;
+
+/**
+ * The most pages a listing may legitimately take given the server's `total_records`; a server that
+ * pages beyond this is misbehaving. Unknown totals fall back to the hard ceiling.
+ */
+export function pageCap(totalRecords: number | null): number {
+  if (totalRecords === null) return LYFTA_MAX_PAGES;
+  return Math.min(
+    LYFTA_MAX_PAGES,
+    Math.ceil(Math.max(0, totalRecords) / LYFTA_PAGE_SIZE) + PAGE_CAP_SLACK,
+  );
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Re-read this many days before the last sync so edits to recent workouts are picked up. */
@@ -29,6 +46,7 @@ export type LyftaSyncResult =
       updated: number;
       deleted: number;
       skipped: number;
+      deletionPause: DeletionPause | null;
     }
   | { status: 'error'; message: string };
 
@@ -104,6 +122,10 @@ function parseBackfillCursor(cursor: string | null): BackfillCursor {
   return { page: 1, startedAt: null };
 }
 
+function sameIds(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
 interface Totals {
   inserted: number;
   updated: number;
@@ -140,9 +162,14 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
     ): Promise<{ ids: number[]; skipped: number }> => {
       const allIds: number[] = [];
       let skipped = 0;
+      let cap: number | null = null;
       for (let page = startPage; ; page += 1) {
+        if (cap !== null && page > cap) {
+          throw new LyftaError('invalid_response', 'Lyfta returned more pages than expected');
+        }
         const json = await client.listWorkouts({ page, limit: LYFTA_PAGE_SIZE, ...range });
         const parsed = parseWorkoutPage(json, unit);
+        cap ??= pageCap(parsed.totalRecords);
         const accepted = parsed.workouts.filter((item) => keep(item.workout.lyftaId));
         const result = await workouts.upsertMany(accepted, syncedAt);
         totals.inserted += result.inserted;
@@ -160,14 +187,16 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
      * A workout missing from the windowed response may have been deleted in Lyfta, or may have had
      * its date moved outside the window (or sit on a day boundary the server filters differently).
      * Only the full listing can tell: candidates found there are refreshed, the rest are deleted.
-     * Any failure or skipped workout means deleting nothing this run.
+     * Any failure or skipped workout means deleting nothing this run, and the returned pause says
+     * why so the next run and the UI can see it.
      */
     const confirmDeletions = async (
       candidates: ReadonlySet<number>,
       windowedIds: readonly number[],
       fromIso: string,
       toIso: string,
-    ): Promise<number> => {
+    ): Promise<{ deleted: number; pause: DeletionPause | null }> => {
+      const candidateIds = [...candidates].sort((a, b) => a - b);
       try {
         const full = await fetchPages(
           1,
@@ -175,10 +204,19 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
           async () => {},
           (id) => candidates.has(id),
         );
-        if (full.skipped > 0) return 0;
-        return await workouts.deleteMissingInRange(fromIso, toIso, [...windowedIds, ...full.ids]);
+        if (full.skipped > 0) {
+          return {
+            deleted: 0,
+            pause: { reason: 'unreadable', candidateIds, skipped: full.skipped },
+          };
+        }
+        const deleted = await workouts.deleteMissingInRange(fromIso, toIso, [
+          ...windowedIds,
+          ...full.ids,
+        ]);
+        return { deleted, pause: null };
       } catch {
-        return 0;
+        return { deleted: 0, pause: { reason: 'error', candidateIds, skipped: 0 } };
       }
     };
 
@@ -192,8 +230,11 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
       totals.skipped += outcome.skipped;
       // Lyfta pages newest-first, so workouts logged during a pause are on pages this run skipped.
       // Recording the original start makes the first incremental window reach back over the pause.
-      await syncState.recordSuccess('lyfta', startedAt, null);
-      return { status: 'ok', mode: 'backfill', deleted: 0, ...totals };
+      await syncState.recordSuccess('lyfta', startedAt, null, {
+        skipped: totals.skipped,
+        deletionPause: null,
+      });
+      return { status: 'ok', mode: 'backfill', deleted: 0, ...totals, deletionPause: null };
     }
 
     const window = incrementalWindow(new Date(state.lastSuccessAt), deps.now());
@@ -202,19 +243,34 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
     const windowed = await fetchPages(1, window, async () => {});
     totals.skipped += windowed.skipped;
     // Only reached when every page succeeded, so a partial response can never delete data.
-    // Skipped (unparseable) workouts have no id in the returned ids, so deleting while any were
-    // skipped could remove stored workouts that still exist in Lyfta; retry once they parse.
+    // A skipped (unparseable) workout has no id in the returned ids and may look like a missing
+    // one, so deleting while any were skipped could remove workouts that still exist in Lyfta.
     let deleted = 0;
-    if (totals.skipped === 0) {
+    let deletionPause: DeletionPause | null = null;
+    if (totals.skipped > 0) {
+      deletionPause = { reason: 'unreadable', candidateIds: [], skipped: totals.skipped };
+    } else {
       const returned = new Set(windowed.ids);
       const localIds = await workouts.listIdsInRange(fromIso, toIso);
       const candidates = new Set(localIds.filter((id) => !returned.has(id)));
       if (candidates.size > 0) {
-        deleted = await confirmDeletions(candidates, windowed.ids, fromIso, toIso);
+        const stored = state.deletionPause;
+        const sortedIds = [...candidates].sort((a, b) => a - b);
+        if (stored?.reason === 'unreadable' && sameIds(stored.candidateIds, sortedIds)) {
+          // The same workouts are still blocked by the same unreadable rows; skip the full listing.
+          deletionPause = stored;
+        } else {
+          const outcome = await confirmDeletions(candidates, windowed.ids, fromIso, toIso);
+          deleted = outcome.deleted;
+          deletionPause = outcome.pause;
+        }
       }
     }
-    await syncState.recordSuccess('lyfta', syncedAt, null);
-    return { status: 'ok', mode: 'incremental', deleted, ...totals };
+    await syncState.recordSuccess('lyfta', syncedAt, null, {
+      skipped: totals.skipped,
+      deletionPause,
+    });
+    return { status: 'ok', mode: 'incremental', deleted, ...totals, deletionPause };
   } catch (error) {
     const errorAt = deps.now().toISOString();
     const isInvalidKey = error instanceof LyftaError && error.kind === 'unauthorized';

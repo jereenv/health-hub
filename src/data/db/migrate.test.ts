@@ -106,6 +106,36 @@ test('v3 adds workout.duration_s and drops total_volume_kg, keeping existing row
   expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout_set'))?.n).toBe(1);
 });
 
+test('v4 adds sync_state skipped and deletion pause columns, keeping existing rows', async () => {
+  const db = await openEmptyTestDatabase();
+  await migrate(db, MIGRATIONS.slice(0, 3));
+  await db.run(
+    `INSERT INTO sync_state (source, cursor, last_success_at, last_error, last_error_at)
+     VALUES ('lyfta', 'c', '2026-11-12T10:00:00.000Z', 'boom', '2026-11-12T11:00:00.000Z')`,
+  );
+
+  expect(await migrate(db, MIGRATIONS)).toBe(MIGRATIONS.length);
+  expect(MIGRATIONS.length).toBeGreaterThanOrEqual(4);
+
+  const columns = await db.all<{ name: string; notnull: number; dflt_value: string | null }>(
+    'PRAGMA table_info(sync_state)',
+  );
+  expect(columns.find((c) => c.name === 'last_skipped')).toMatchObject({
+    notnull: 1,
+    dflt_value: '0',
+  });
+  expect(columns.find((c) => c.name === 'deletion_pause')).toMatchObject({ notnull: 0 });
+  expect(await db.first('SELECT * FROM sync_state')).toEqual({
+    source: 'lyfta',
+    cursor: 'c',
+    last_success_at: '2026-11-12T10:00:00.000Z',
+    last_error: 'boom',
+    last_error_at: '2026-11-12T11:00:00.000Z',
+    last_skipped: 0,
+    deletion_pause: null,
+  });
+});
+
 test('refuses a database newer than the app', async () => {
   const db = await openTestDatabase();
   await db.exec(`PRAGMA user_version = ${MIGRATIONS.length + 1}`);
