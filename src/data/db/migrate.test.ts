@@ -171,6 +171,44 @@ test('v5 adds the scheduled_workout table and date index, keeping existing rows'
   });
 });
 
+test('v6 adds the profile_version table and index, keeping existing rows', async () => {
+  const db = await openEmptyTestDatabase();
+  await migrate(db, MIGRATIONS.slice(0, 5));
+  await db.run(
+    `INSERT INTO scheduled_workout VALUES ('s1', '2026-11-13', 'Push', NULL, NULL, NULL, 0, '{}',
+     '2026-11-12T10:00:00.000Z')`,
+  );
+  await db.run("INSERT INTO setting (key, value) VALUES ('lyfta.weightUnit', 'kg')");
+
+  expect(await migrate(db, MIGRATIONS)).toBe(MIGRATIONS.length);
+  expect(MIGRATIONS.length).toBeGreaterThanOrEqual(6);
+
+  const columns = await db.all<{ name: string; notnull: number; pk: number }>(
+    'PRAGMA table_info(profile_version)',
+  );
+  expect(columns.map((c) => c.name)).toEqual([
+    'id',
+    'effective_from',
+    'height_cm',
+    'birth_date',
+    'sex',
+    'goal_weight_kg',
+    'bmi_cutoffs',
+  ]);
+  expect(columns.find((c) => c.name === 'id')).toMatchObject({ pk: 1 });
+  expect(columns.find((c) => c.name === 'effective_from')).toMatchObject({ notnull: 1 });
+  expect(columns.find((c) => c.name === 'bmi_cutoffs')).toMatchObject({ notnull: 1 });
+  expect(columns.find((c) => c.name === 'height_cm')).toMatchObject({ notnull: 0 });
+  const indexes = await db.all<{ name: string }>('PRAGMA index_list(profile_version)');
+  expect(indexes.map((i) => i.name)).toContain('idx_profile_version_effective');
+  expect(await db.first('SELECT title FROM scheduled_workout WHERE lyfta_id = ?', ['s1'])).toEqual({
+    title: 'Push',
+  });
+  expect(await db.first("SELECT value FROM setting WHERE key = 'lyfta.weightUnit'")).toEqual({
+    value: 'kg',
+  });
+});
+
 test('refuses a database newer than the app', async () => {
   const db = await openTestDatabase();
   await db.exec(`PRAGMA user_version = ${MIGRATIONS.length + 1}`);

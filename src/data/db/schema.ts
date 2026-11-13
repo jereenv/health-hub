@@ -56,4 +56,12 @@ export const MIGRATIONS: readonly Migration[] = [
     raw_json TEXT NOT NULL, synced_at TEXT NOT NULL);
   CREATE INDEX idx_scheduled_workout_date ON scheduled_workout (scheduled_date);
   `,
+  // v6 — the owner's body profile, append-only so an old weigh-in uses the profile in effect then.
+  // effective_from is an ISO-8601 UTC instant; birth_date is a calendar day (YYYY-MM-DD).
+  `
+  CREATE TABLE profile_version (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, effective_from TEXT NOT NULL,
+    height_cm REAL, birth_date TEXT, sex TEXT, goal_weight_kg REAL, bmi_cutoffs TEXT NOT NULL);
+  CREATE INDEX idx_profile_version_effective ON profile_version (effective_from);
+  `,
 ];
