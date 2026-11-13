@@ -126,6 +126,26 @@ within the one response sampled. A field seen only as `null` has an unknown real
 `data` came back as an empty array, so the shape of its items is **not yet known**. Re-probe with an
 account state or query that returns progress rows before writing a parser for it.
 
+## Value formats (patterns)
+
+Patterns use `9` for a digit, `a` for an ASCII letter and keep other characters. Recorded on
+2026-11-13 from the `raw_json` stored on the phone (31 workouts), not from a fresh API call. No
+values are recorded here.
+
+| Field | Pattern seen | Interpretation for the parser |
+| --- | --- | --- |
+| `workouts[].workout_perform_date` | `9999-99-99 99:99:99` (31 of 31) | A date and time with a space separator and no zone. Parse it by hand as `YYYY-MM-DD HH:mm:ss`. The zone is **unconfirmed**; never pass it to `new Date`. |
+| `workouts[].workout_duration` | `99:99:99` (31 of 31) | A duration in `H:MM:SS` form (colon-separated, not seconds or minutes as a bare number). |
+| `schedule[].scheduled_date` | not yet confirmed | Task 10's parser accepts both `YYYY-MM-DD` and an ISO prefix. Task 21 confirms it on device. |
+| `schedule[].scheduled_time` | not yet confirmed (`null` in the earlier sample) | Treat as optional. |
+
+`workouts[].exercises[].sets[].set_type_id` is a string enum code. Distinct codes seen, with set
+counts across the 31 stored workouts: `0` (573), `1` (43), `2` (19), `3` (19). Their meanings are
+**unknown**, so warm-ups cannot be filtered out yet.
+
+`npm run lyfta:probe -- --patterns` prints these patterns from a fresh API call (it needs the
+Keychain key, so it has not been run for this table).
+
 ## Units
 
 - Set weights are in the account unit, read from `/exercises/progress` `weight_unit`.
