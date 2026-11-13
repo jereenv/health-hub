@@ -51,9 +51,10 @@ test('converts pounds to kilograms', () => {
   expect(set.weightKg).toBeCloseTo(80 * LB_TO_KG, 6);
 });
 
-test('converts body weight and total volume from pounds to kilograms', () => {
+test('converts total volume from pounds, but never body weight', () => {
   const workout = parseWorkoutPage(sandbox, 'lb').workouts[0].workout;
-  expect(workout.bodyWeightKg).toBeCloseTo(82 * LB_TO_KG, 6);
+  // Body weight is always kg in Lyfta, whatever the account unit (owner-confirmed 2026-11-12).
+  expect(workout.bodyWeightKg).toBe(82);
   expect(workout.totalVolumeKg).toBeCloseTo(12400 * LB_TO_KG, 6);
 });
 

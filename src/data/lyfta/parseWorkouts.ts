@@ -110,7 +110,8 @@ function toWorkout(raw: z.infer<typeof workoutSchema>, unit: WeightUnit): Workou
     performedAt: new Date(raw.workout_perform_date).toISOString(),
     title: raw.title,
     totalVolumeKg: toKg(raw.total_volume, unit),
-    bodyWeightKg: toKg(raw.body_weight, unit),
+    // Lyfta reports body weight in kg whatever the account unit is (owner-confirmed 2026-11-12).
+    bodyWeightKg: parseNumeric(raw.body_weight),
     exercises: (raw.exercises ?? []).map((exercise, index) => toExercise(exercise, index, unit)),
   };
 }
