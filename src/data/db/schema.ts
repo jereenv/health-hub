@@ -29,4 +29,7 @@ export const MIGRATIONS: readonly string[] = [
     last_error TEXT, last_error_at TEXT);
   CREATE TABLE setting (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
   `,
+  // v2 — Lyfta's workout body weight is hand-entered and never used; body weight comes from the
+  // scale and Health Connect. The original value remains in workout.raw_json.
+  'ALTER TABLE workout DROP COLUMN body_weight_kg;',
 ];

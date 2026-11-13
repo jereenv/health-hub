@@ -341,6 +341,7 @@ Answers to a builder's review of this document. Items marked *Claude's call* wer
 6. **Formula acceptance.** *Claude's call:* prefer equations validated for leg-to-leg (foot-pad) BIA where they exist; otherwise use standard whole-body equations and say so in the explanation. Acceptance bar: published source, physiologically plausible, consistent over time. Sanity tolerance against MovingLife's displayed values for the same weigh-in: body fat within ±4 percentage points, water and muscle within ±5. Larger gaps are investigated as possible bugs and documented either way.
 7. **Units and time.** *Claude's call:* read the weight unit from Lyfta's `/profile`; store kg internally; display in the owner's chosen unit. "Day" means a local day in the phone's time zone (America/New_York, verified), with DST handled by the time library. Query Lyfta `from`/`to` with ±1 day padding, then bucket locally.
 8. **Health Connect timestamps.** *Claude's call:* verify on device whether MovingLife writes the measurement time or the sync time. If sync time, dedupe on same local day + weight within 0.1 kg instead of ±2 minutes.
+9. **Lyfta body weight.** Owner decision 2026-11-12: Lyfta's workout `body_weight` is manually entered and is never used; body weight comes only from the scale (BLE) and MovingLife / Health Connect / Senssun history.
 
 ## 19. Left to the builder
 

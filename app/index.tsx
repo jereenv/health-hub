@@ -193,12 +193,9 @@ export default function Index() {
         {actionError !== null && <Text>Error: {actionError}</Text>}
 
         {/* TEMPORARY (Plan 2 replaces this screen): compare stored weights with the Lyfta app once. */}
-        <Text style={styles.section}>Weight check (newest workout)</Text>
+        <Text style={styles.section}>Weight check (newest workout, first set)</Text>
         <Text testID="weight-check">
           First set: {formatKgAndLb(snapshot?.recent[0]?.exercises[0]?.sets[0]?.weightKg ?? null)}
-        </Text>
-        <Text testID="body-weight-check">
-          Body weight: {formatKgAndLb(snapshot?.recent[0]?.bodyWeightKg ?? null)}
         </Text>
 
         <Text style={styles.section}>Newest {RECENT_COUNT}</Text>

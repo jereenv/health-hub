@@ -129,8 +129,8 @@ account state or query that returns progress rows before writing a parser for it
 ## Units
 
 - Set weights are in the account unit, read from `/exercises/progress` `weight_unit`.
-- `body_weight` is kg regardless of the account unit (owner-confirmed 2026-11-12; no API field
-  exposes this).
+- `body_weight` is owner-entered in Lyfta and is intentionally ignored; body weight comes only from
+  the scale and MovingLife history.
 - `total_volume` is not yet verified. It is currently treated as being in the account unit; check
   it against raw set weights and reps before relying on it.
 

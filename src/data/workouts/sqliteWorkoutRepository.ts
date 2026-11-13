@@ -8,7 +8,6 @@ interface WorkoutRow {
   performed_at: string;
   title: string;
   total_volume_kg: number | null;
-  body_weight_kg: number | null;
 }
 
 interface ExerciseRow {
@@ -108,12 +107,11 @@ async function hydrate(db: SqlDatabase, rows: readonly WorkoutRow[]): Promise<Wo
     performedAt: r.performed_at,
     title: r.title,
     totalVolumeKg: r.total_volume_kg,
-    bodyWeightKg: r.body_weight_kg,
     exercises: exercisesByWorkout.get(r.lyfta_id) ?? [],
   }));
 }
 
-const WORKOUT_COLUMNS = 'lyfta_id, performed_at, title, total_volume_kg, body_weight_kg';
+const WORKOUT_COLUMNS = 'lyfta_id, performed_at, title, total_volume_kg';
 
 /** SQLite-backed `WorkoutRepository`; runs unchanged on the phone and in Node tests. */
 export function createSqliteWorkoutRepository(db: SqlDatabase): WorkoutRepository {
@@ -134,13 +132,12 @@ export function createSqliteWorkoutRepository(db: SqlDatabase): WorkoutRepositor
 
           await db.run(
             `INSERT INTO workout
-               (lyfta_id, performed_at, title, total_volume_kg, body_weight_kg, raw_json, synced_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
+               (lyfta_id, performed_at, title, total_volume_kg, raw_json, synced_at)
+             VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT(lyfta_id) DO UPDATE SET
                performed_at = excluded.performed_at,
                title = excluded.title,
                total_volume_kg = excluded.total_volume_kg,
-               body_weight_kg = excluded.body_weight_kg,
                raw_json = excluded.raw_json,
                synced_at = excluded.synced_at`,
             [
@@ -148,7 +145,6 @@ export function createSqliteWorkoutRepository(db: SqlDatabase): WorkoutRepositor
               workout.performedAt,
               workout.title,
               workout.totalVolumeKg,
-              workout.bodyWeightKg,
               rawJson,
               syncedAt,
             ],

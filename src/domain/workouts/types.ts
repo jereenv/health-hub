@@ -29,6 +29,5 @@ export interface Workout {
   performedAt: string;
   title: string;
   totalVolumeKg: number | null;
-  bodyWeightKg: number | null;
   exercises: WorkoutExercise[];
 }
