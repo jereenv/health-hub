@@ -13,6 +13,8 @@ export interface ExerciseSession {
   volumeKg: number;
   bestWeightKg: number | null;
   bestE1rmKg: number | null;
+  /** The set that gives `bestE1rmKg`. */
+  e1rmSet: { weightKg: number; reps: number } | null;
   topSet: { weightKg: number; reps: number } | null;
 }
 
@@ -36,6 +38,7 @@ export function exerciseSessions(
 
     let topSet: ScoredSet | null = null;
     let bestE1rmKg: number | null = null;
+    let e1rmSet: ScoredSet | null = null;
     for (const set of scored) {
       if (
         topSet === null ||
@@ -45,7 +48,10 @@ export function exerciseSessions(
         topSet = set;
       }
       const e1rm = estimateOneRepMaxKg(set.weightKg, set.reps);
-      if (e1rm !== null && (bestE1rmKg === null || e1rm > bestE1rmKg)) bestE1rmKg = e1rm;
+      if (e1rm !== null && (bestE1rmKg === null || e1rm > bestE1rmKg)) {
+        bestE1rmKg = e1rm;
+        e1rmSet = set;
+      }
     }
 
     sessions.push({
@@ -57,6 +63,7 @@ export function exerciseSessions(
       volumeKg: scored.reduce((sum, set) => sum + set.weightKg * set.reps, 0),
       bestWeightKg: topSet === null ? null : topSet.weightKg,
       bestE1rmKg,
+      e1rmSet: e1rmSet === null ? null : { weightKg: e1rmSet.weightKg, reps: e1rmSet.reps },
       topSet: topSet === null ? null : { weightKg: topSet.weightKg, reps: topSet.reps },
     });
   }

@@ -65,6 +65,8 @@ describe('exerciseSessions', () => {
       topSet: { weightKg: 70, reps: 5 },
     });
     expect(sessions[1]?.bestE1rmKg).toBeCloseTo(70 * (1 + 5 / 30), 5);
+    expect(sessions[0]?.e1rmSet).toEqual({ weightKg: 50, reps: 1 });
+    expect(sessions[1]?.e1rmSet).toEqual({ weightKg: 70, reps: 5 });
   });
 
   test('exerciseSessions top set prefers heavier, then more reps, then the earliest set', () => {
@@ -134,6 +136,7 @@ describe('exerciseSessions', () => {
         volumeKg: 0,
         bestWeightKg: null,
         bestE1rmKg: null,
+        e1rmSet: null,
         topSet: null,
       },
     ]);
