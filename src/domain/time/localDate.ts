@@ -2,6 +2,7 @@
 export type DateKey = string;
 
 const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ZONE_SUFFIX_PATTERN = /(Z|[+-]\d{2}:\d{2})$/;
 const MS_PER_DAY = 86_400_000;
 
 interface DateParts {
@@ -46,9 +47,13 @@ export function parseDateKey(key: DateKey): DateParts {
 
 /**
  * The phone-local calendar day of an instant. A string must be our own normalised
- * ISO UTC string; never pass raw Lyfta strings here.
+ * ISO UTC string; never pass raw Lyfta strings here. A string without `Z` or `±hh:mm` would be
+ * read in the device zone by the engine, so it is rejected.
  */
 export function localDateKey(instant: Date | string): DateKey {
+  if (typeof instant === 'string' && !ZONE_SUFFIX_PATTERN.test(instant)) {
+    throw new RangeError('Instant string must end in Z or an offset');
+  }
   const date = typeof instant === 'string' ? new Date(instant) : instant;
   if (Number.isNaN(date.getTime())) throw new RangeError('Invalid instant');
   return keyFromParts({

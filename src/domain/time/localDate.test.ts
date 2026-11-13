@@ -24,6 +24,9 @@ test.each([
 test('localDateKey accepts a Date and rejects invalid input', () => {
   expect(localDateKey(new Date('2026-11-13T03:30:00.000Z'))).toBe('2026-11-12');
   expect(() => localDateKey('not a date')).toThrow(RangeError);
+  expect(() => localDateKey('2026-08-20 13:05:00')).toThrow(RangeError);
+  expect(() => localDateKey('2026-08-20T13:05:00')).toThrow(RangeError);
+  expect(localDateKey('2026-08-20T13:05:00-04:00')).toBe('2026-08-20');
 });
 
 test('calendar arithmetic ignores DST', () => {
