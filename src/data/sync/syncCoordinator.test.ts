@@ -1,6 +1,6 @@
 import type { LyftaClient } from '@/data/lyfta/LyftaClient';
 import { LyftaError } from '@/data/lyfta/LyftaError';
-import { WORKOUT_PARSER_VERSION } from '@/data/lyfta/parseWorkouts';
+import { LB_TO_KG, WORKOUT_PARSER_VERSION } from '@/data/lyfta/parseWorkouts';
 import { wipeSyncedData } from '@/data/maintenance/wipeSyncedData';
 import { createSqliteProfileRepository } from '@/data/profile/ProfileRepository';
 import { createSqliteScheduleRepository } from '@/data/schedule/ScheduleRepository';
@@ -130,22 +130,107 @@ test('ignores another unit check failure and lets the sync report on its own', a
   expect(log).toEqual(['getExerciseProgress', 'listWorkouts', 'listSchedule']);
 });
 
-test('re-parses stored workouts when the Lyfta unit changed', async () => {
-  const { sync, state, deps } = await setup({ unit: 'lb' });
-  state.progress = { weight_unit: 'lb' };
-  await sync.run(); // stored as lb, parsedWith saved
-  expect(JSON.parse((await deps.settings.get('lyfta.parsedWith')) ?? 'null')).toEqual({
-    version: WORKOUT_PARSER_VERSION,
-    unit: 'lb',
+describe('a Lyfta unit change downloads the history again', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const lyftaLocal = (ms: number): string => {
+    const d = new Date(ms);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:00:00`;
+  };
+
+  /**
+   * A fake account holding two workouts of one 100 kg set: one 60 days old (outside the 8-day
+   * window) and one from yesterday. A converting server stores kg and shows the account unit; a
+   * re-labelling server shows the same number whatever the unit is.
+   */
+  async function setupUnitServer(model: 'converting' | 'relabelling') {
+    const base = await setup({ unit: null });
+    const server = { unit: 'lb' as 'kg' | 'lb' };
+    const shown = (): number =>
+      model === 'converting' && server.unit === 'lb' ? 100 / LB_TO_KG : 100;
+    const calls: { from?: string; to?: string }[] = [];
+    const client: LyftaClient = {
+      ...base.deps.client,
+      async listWorkouts({ page, limit, from, to }) {
+        calls.push({ from, to });
+        const all = [
+          { id: 1, daysAgo: 60 },
+          { id: 2, daysAgo: 1 },
+        ].filter(({ daysAgo }) => {
+          const day = new Date(NOW.getTime() - daysAgo * DAY_MS).toISOString().slice(0, 10);
+          return (from === undefined || day >= from) && (to === undefined || day <= to);
+        });
+        const slice = all.slice((page - 1) * limit, page * limit);
+        return {
+          workouts: slice.map(({ id, daysAgo }) => ({
+            id,
+            title: 'Session',
+            workout_perform_date: lyftaLocal(NOW.getTime() - daysAgo * DAY_MS),
+            weight_unit: null,
+            exercises: [
+              {
+                exercise_id: 7,
+                excercise_name: 'Bench',
+                exercise_type: 'weight_reps',
+                sets: [{ weight: String(shown()), reps: '5', is_completed: true }],
+              },
+            ],
+          })),
+          current_page: page,
+          total_pages: Math.max(1, Math.ceil(all.length / limit)),
+          total_records: all.length,
+        };
+      },
+      getExerciseProgress: async () => ({ weight_unit: server.unit }),
+    };
+    const sync = createSyncCoordinator({ ...base.deps, client });
+    const firstSetKg = async (id: number) =>
+      (await base.deps.workouts.get(id))?.exercises[0]?.sets[0]?.weightKg ?? null;
+    return { sync, server, calls, firstSetKg, deps: base.deps };
+  }
+
+  test('a converting server: an old 100 kg set stays 100 kg after lb to kg', async () => {
+    const t = await setupUnitServer('converting');
+    await t.sync.run();
+    expect(await t.firstSetKg(1)).toBeCloseTo(100, 6);
+
+    t.server.unit = 'kg';
+    const result = await t.sync.run();
+    expect(result.workouts).toMatchObject({ status: 'ok', mode: 'backfill' });
+    expect(await t.firstSetKg(1)).toBeCloseTo(100, 6);
+    expect(await t.firstSetKg(2)).toBeCloseTo(100, 6);
   });
 
-  state.progress = { weight_unit: 'kg' };
-  const result = await sync.run();
-  expect(await deps.settings.get('lyfta.weightUnit')).toBe('kg');
-  expect(result.reparsed).toEqual({ reparsed: 2, skipped: 0 });
-  expect(JSON.parse((await deps.settings.get('lyfta.parsedWith')) ?? 'null')).toEqual({
-    version: WORKOUT_PARSER_VERSION,
-    unit: 'kg',
+  test('a re-labelling server: the old workout shows what the server now reports', async () => {
+    const t = await setupUnitServer('relabelling');
+    await t.sync.run();
+    expect(await t.firstSetKg(1)).toBeCloseTo(100 * LB_TO_KG, 6);
+
+    t.server.unit = 'kg';
+    await t.sync.run();
+    expect(await t.firstSetKg(1)).toBeCloseTo(100, 6);
+    expect(await t.firstSetKg(2)).toBeCloseTo(100, 6);
+  });
+
+  test('lists without from/to, saves parsedWith for the new unit and re-parses nothing', async () => {
+    const t = await setupUnitServer('converting');
+    await t.sync.run();
+    t.calls.length = 0;
+
+    t.server.unit = 'kg';
+    const result = await t.sync.run();
+    expect(t.calls.length).toBeGreaterThan(0);
+    for (const call of t.calls) {
+      expect(call.from).toBeUndefined();
+      expect(call.to).toBeUndefined();
+    }
+    expect(result.reparsed).toBeNull();
+    expect(JSON.parse((await t.deps.settings.get('lyfta.parsedWith')) ?? 'null')).toEqual({
+      version: WORKOUT_PARSER_VERSION,
+      unit: 'kg',
+      skipped: 0,
+    });
+    expect(await t.deps.settings.get('lyfta.weightUnit')).toBe('kg');
   });
 });
 

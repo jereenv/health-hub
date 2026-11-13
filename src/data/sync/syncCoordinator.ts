@@ -2,7 +2,7 @@ import type { LyftaClient } from '@/data/lyfta/LyftaClient';
 import { LyftaError } from '@/data/lyfta/LyftaError';
 import type { LyftaSyncResult } from '@/data/lyfta/lyftaSync';
 import { syncLyfta } from '@/data/lyfta/lyftaSync';
-import { refreshLyftaUnit } from '@/data/lyfta/lyftaUnit';
+import { parseWeightUnit, refreshLyftaUnit } from '@/data/lyfta/lyftaUnit';
 import type { ScheduleSyncResult } from '@/data/lyfta/scheduleSync';
 import { syncLyftaSchedule } from '@/data/lyfta/scheduleSync';
 import type { ScheduleRepository } from '@/data/schedule/ScheduleRepository';
@@ -10,7 +10,7 @@ import type { SecretStore } from '@/data/secrets/SecretStore';
 import { SECRET_KEYS } from '@/data/secrets/SecretStore';
 import type { PreferencesStore } from '@/data/settings/preferences';
 import type { SettingsRepository } from '@/data/settings/SettingsRepository';
-import { ensureWorkoutsParsed } from '@/data/workouts/reparseStoredWorkouts';
+import { ensureWorkoutsParsed, markWorkoutsParsed } from '@/data/workouts/reparseStoredWorkouts';
 import type { WorkoutRepository } from '@/data/workouts/WorkoutRepository';
 
 import type { SyncStateRepository } from './SyncStateRepository';
@@ -140,10 +140,17 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
     }
 
     if (workoutsResult === null) {
-      // 3. Re-check the account unit; a change means stored weights must be converted again.
+      // 3. Re-check the account unit. Lyfta may re-label its stored numbers or convert them, and
+      // nothing local can tell which, so a change downloads the history again (step 4) instead of
+      // re-reading stored `raw_json` in the new unit. The stored rows then count as parsed with
+      // it, so no local re-parse applies the new unit to numbers fetched under the old one.
       try {
         const { changed } = await refreshLyftaUnit({ client, settings });
-        if (changed) await reparseAndRecord();
+        if (changed) {
+          const unit = parseWeightUnit(await settings.get('lyfta.weightUnit'));
+          if (unit !== null) await markWorkoutsParsed(settings, unit);
+          await syncState.reset('lyfta');
+        }
       } catch (error) {
         if (error instanceof LyftaError && error.kind === 'unauthorized') {
           try {

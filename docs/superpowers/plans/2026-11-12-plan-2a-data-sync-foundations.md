@@ -122,7 +122,7 @@ Plan 2 builds on Plan 1 as merged into `main`. Confirm each item with `grep` or 
 ## Review Focus
 
 1. **Workouts near local midnight and across the DST change.** A Sunday 23:30 New York workout belongs to that Sunday's week, including the week of 2026-11-01 when DST ends. It must not slide into the next week the way it would under UTC bucketing. → Task 7, `a Sunday 23:30 workout stays in its week across the DST change`.
-2. **A pound account.** Whole pounds round-trip on screen ("135 lb", never "134.9 lb"). Switching the display unit never rewrites stored kg. A detected parse-unit change re-converts every stored workout from `raw_json`. → Task 4, `formatWeight round-trips whole pounds`; Task 8, `converts stored workouts again when the unit changed`.
+2. **A pound account.** Whole pounds round-trip on screen ("135 lb", never "134.9 lb"). Switching the display unit never rewrites stored kg. A detected parse-unit change triggers a full re-download of the history, because Lyfta may convert its stored numbers or only re-label them and old `raw_json` cannot be re-read safely in the new unit. → Task 4, `formatWeight round-trips whole pounds`; Task 12, `a Lyfta unit change downloads the history again`.
 3. **Sets that cannot be scored.** These are sets that are not completed, have an empty or zero weight, empty reps, more than 12 reps (for 1RM), or are cardio. They never produce NaN, a volume, a PR or a 1RM, but they still display. → Task 5, `uncompleted, weightless and rep-less sets never count`; Task 18, `describeSetChip` cases.
 4. **Thin data.** This covers no key, the first backfill still running, zero workouts, an exercise with one session, flat values and an empty schedule. The result is empty states or skeletons and finite chart domains, never a crash or a NaN axis. → Task 15, `a flat or single-point series gets a finite domain`; Task 18, `empty history gives an empty overview`.
 5. **Settings actions overlapping a sync.** Wipe or Re-sync can be tapped mid-sync, and a settings write can land during the sync's upsert transaction. Wipe must leave no data behind, and the setting must survive a rollback of the sync transaction. → Task 12, `wipe waits for an in-flight run, then leaves no synced data`; Task 2, `a settings write survives another transaction's rollback`.
@@ -815,7 +815,7 @@ export function refreshLyftaUnit(deps: { client: LyftaClient; settings: Settings
   - Then save `parsedWith`.
 - **`refreshLyftaUnit`.**
   - Stored unit unset → no request (Plan 1's `syncLyfta` resolves it).
-  - Otherwise fetch `/exercises/progress`. A detected unit that is null or unchanged → `changed: false`. A different unit → save it and return `changed: true`. The coordinator then re-parses (Task 12).
+  - Otherwise fetch `/exercises/progress`. A detected unit that is null or unchanged → `changed: false`. A different unit → save it and return `changed: true`. The coordinator then resets the Lyfta sync state so the same run backfills the full history again, and marks the stored rows as parsed with the new unit, rather than re-parsing old `raw_json` (Task 12).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1160,7 +1160,7 @@ export function resetAppContainer(): void;                 // for the provider's
 test('runs re-parse, unit check, workouts and schedule in that order'); // fake client call log: getExerciseProgress, listWorkouts, listSchedule
 test('makes no request without a key');
 test('stops with invalid_key when the unit check is rejected');
-test('re-parses stored workouts when the Lyfta unit changed');
+test('a Lyfta unit change downloads the history again');  // reset + full backfill, no re-parse of old raw_json
 test('concurrent runs share one sync');                // listWorkouts page 1 called once; both results are the same object
 test('resync clears both sync states and backfills');  // listWorkouts without from/to; listSchedule called
 test('wipe waits for an in-flight run, then leaves no synced data');

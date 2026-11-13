@@ -13,6 +13,8 @@ import type { WorkoutRepository } from './WorkoutRepository';
 export interface ParsedWith {
   version: number;
   unit: WeightUnit;
+  /** Stored rows that could not be re-parsed at that time; they fail the same way until re-fetched. */
+  skipped: number;
 }
 
 /** Reads `lyfta.parsedWith`; anything missing, malformed or of the wrong shape counts as unparsed. */
@@ -25,16 +27,36 @@ function readParsedWith(value: string | null): ParsedWith | null {
     return null;
   }
   if (typeof json !== 'object' || json === null) return null;
-  const { version, unit } = json as Record<string, unknown>;
+  const { version, unit, skipped } = json as Record<string, unknown>;
   if (typeof version !== 'number' || (unit !== 'kg' && unit !== 'lb')) return null;
-  return { version, unit };
+  // Saved before the count existed, or damaged: only `version` and `unit` decide what is current.
+  const validSkipped =
+    typeof skipped === 'number' && Number.isInteger(skipped) && skipped >= 0 ? skipped : 0;
+  return { version, unit, skipped: validSkipped };
+}
+
+/**
+ * Records that stored workouts count as parsed with the current parser and `unit`, without
+ * re-parsing them. Used when a unit change re-downloads the history instead, so no stored
+ * `raw_json` is ever read in a unit it was not fetched under.
+ */
+export async function markWorkoutsParsed(
+  settings: SettingsRepository,
+  unit: WeightUnit,
+  skipped = 0,
+): Promise<void> {
+  const saved: ParsedWith = { version: WORKOUT_PARSER_VERSION, unit, skipped };
+  await settings.set('lyfta.parsedWith', JSON.stringify(saved));
 }
 
 /**
  * Re-parses every stored workout from its raw JSON when the parser version or the Lyfta weight
  * unit differs from what they were last parsed with. Needs no network. Returns null when there
  * is nothing to do. A row that cannot be re-parsed keeps its stored data and is counted as
- * skipped; `lyfta.parsedWith` is saved only when nothing was skipped, so the next run retries.
+ * skipped. `lyfta.parsedWith` is saved, with the skipped count, once the upserts succeed: the same
+ * parser on the same `raw_json` fails the same way every time, so retrying would only repeat the
+ * work. A fetch from Lyfta (Re-sync) or a parser version bump is what can fix such a row. A thrown
+ * database error leaves it unsaved.
  */
 export async function ensureWorkoutsParsed(deps: {
   workouts: WorkoutRepository;
@@ -70,9 +92,6 @@ export async function ensureWorkoutsParsed(deps: {
   for (const [syncedAt, items] of bySyncedAt) {
     await deps.workouts.upsertMany(items, syncedAt);
   }
-  if (skipped === 0) {
-    const saved: ParsedWith = { version: WORKOUT_PARSER_VERSION, unit };
-    await deps.settings.set('lyfta.parsedWith', JSON.stringify(saved));
-  }
+  await markWorkoutsParsed(deps.settings, unit, skipped);
   return { reparsed, skipped };
 }

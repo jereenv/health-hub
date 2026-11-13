@@ -2,7 +2,7 @@ import { LB_TO_KG, parseWorkoutPage, WORKOUT_PARSER_VERSION } from '@/data/lyfta
 import { createSqliteSettingsRepository } from '@/data/settings/SettingsRepository';
 import { openTestDatabase } from '@/test-support/sqljsDatabase';
 
-import { ensureWorkoutsParsed } from './reparseStoredWorkouts';
+import { ensureWorkoutsParsed, markWorkoutsParsed } from './reparseStoredWorkouts';
 import { createSqliteWorkoutRepository } from './sqliteWorkoutRepository';
 
 const sandbox = require('@/data/lyfta/__fixtures__/sandbox-workouts.json');
@@ -31,6 +31,7 @@ test('reparses every stored workout when the parser version changed', async () =
   expect(JSON.parse((await settings.get('lyfta.parsedWith')) ?? 'null')).toEqual({
     version: WORKOUT_PARSER_VERSION,
     unit: 'kg',
+    skipped: 0,
   });
 });
 
@@ -48,6 +49,7 @@ test('converts stored workouts again when the unit changed', async () => {
   expect(JSON.parse((await settings.get('lyfta.parsedWith')) ?? 'null')).toEqual({
     version: WORKOUT_PARSER_VERSION,
     unit: 'lb',
+    skipped: 0,
   });
 });
 
@@ -100,8 +102,14 @@ test('keeps a stored workout whose raw JSON no longer parses and counts it', asy
   // The unparseable row is untouched; the other row was re-parsed.
   expect((await workouts.get(1001))?.exercises[0].sets[0].weightKg).toBe(1);
   expect(await workouts.get(1002)).toEqual(parsed[1].workout);
-  // Not saved, so the next run retries the skipped row.
-  expect(await settings.get('lyfta.parsedWith')).toBeNull();
+  // Saved with the count: re-parsing the same raw JSON would fail the same way, so the next run
+  // has nothing to do.
+  expect(JSON.parse((await settings.get('lyfta.parsedWith')) ?? 'null')).toEqual({
+    version: WORKOUT_PARSER_VERSION,
+    unit: 'kg',
+    skipped: 1,
+  });
+  expect(await ensureWorkoutsParsed({ workouts, settings })).toBeNull();
 });
 
 test('counts a stored workout that parses as JSON but not as a workout', async () => {
@@ -111,7 +119,56 @@ test('counts a stored workout that parses as JSON but not as a workout', async (
   await workouts.upsertMany(broken, SYNCED_AT);
 
   expect(await ensureWorkoutsParsed({ workouts, settings })).toEqual({ reparsed: 1, skipped: 1 });
+  expect(JSON.parse((await settings.get('lyfta.parsedWith')) ?? 'null')).toMatchObject({
+    skipped: 1,
+  });
+  expect(await ensureWorkoutsParsed({ workouts, settings })).toBeNull();
+});
+
+test('leaves parsedWith unsaved when a database write throws', async () => {
+  const { workouts, settings, parsed } = await setup('kg');
+  await workouts.upsertMany(parsed, SYNCED_AT);
+  jest.spyOn(workouts, 'upsertMany').mockRejectedValue(new Error('db down'));
+
+  await expect(ensureWorkoutsParsed({ workouts, settings })).rejects.toThrow('db down');
   expect(await settings.get('lyfta.parsedWith')).toBeNull();
+});
+
+test('compares only the version and unit, so any skipped count counts as parsed', async () => {
+  const { workouts, settings, parsed } = await setup('kg');
+  await workouts.upsertMany(parsed, SYNCED_AT);
+  await settings.set(
+    'lyfta.parsedWith',
+    JSON.stringify({ version: WORKOUT_PARSER_VERSION, unit: 'kg', skipped: 5 }),
+  );
+  expect(await ensureWorkoutsParsed({ workouts, settings })).toBeNull();
+});
+
+test.each(['missing', -1, 'x', 1.5])('reads skipped %p as 0', async (skipped) => {
+  const { workouts, settings, parsed } = await setup('kg');
+  await workouts.upsertMany(parsed, SYNCED_AT);
+  const saved: Record<string, unknown> = { version: 0, unit: 'kg' };
+  if (skipped !== 'missing') saved.skipped = skipped;
+  await settings.set('lyfta.parsedWith', JSON.stringify(saved));
+  // An older version re-parses; the stored value is replaced by a clean count.
+  expect(await ensureWorkoutsParsed({ workouts, settings })).toEqual({ reparsed: 2, skipped: 0 });
+
+  await settings.set(
+    'lyfta.parsedWith',
+    JSON.stringify({ ...saved, version: WORKOUT_PARSER_VERSION }),
+  );
+  // Same version and unit: parsed regardless of the odd skipped value.
+  expect(await ensureWorkoutsParsed({ workouts, settings })).toBeNull();
+});
+
+test('markWorkoutsParsed saves the current parser version and the unit', async () => {
+  const { settings } = await setup('kg');
+  await markWorkoutsParsed(settings, 'lb');
+  expect(JSON.parse((await settings.get('lyfta.parsedWith')) ?? 'null')).toEqual({
+    version: WORKOUT_PARSER_VERSION,
+    unit: 'lb',
+    skipped: 0,
+  });
 });
 
 test("keeps each workout's original synced_at", async () => {
