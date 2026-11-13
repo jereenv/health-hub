@@ -11,6 +11,13 @@ export interface RunResult {
   lastInsertRowId: number;
 }
 
+/**
+ * Plain `exec`/`run`/`all`/`first` calls are NOT queued behind an open
+ * transaction. The adapter has a single shared connection, so while another
+ * caller's `transaction` is open these statements execute inside it and are
+ * rolled back with it. UI-triggered writes, and reads that need a consistent
+ * multi-statement view, must therefore use `transaction`.
+ */
 export interface SqlDatabase {
   /** Runs one or more statements with no parameters and no result. */
   exec(sql: string): Promise<void>;
@@ -56,7 +63,11 @@ export function createTransactionRunner(
         await exec('COMMIT');
         return result;
       } catch (error) {
-        await exec('ROLLBACK');
+        try {
+          await exec('ROLLBACK');
+        } catch {
+          // A failed ROLLBACK must not mask the error that caused it.
+        }
         throw error;
       }
     });

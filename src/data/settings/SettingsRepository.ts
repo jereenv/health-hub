@@ -9,7 +9,7 @@ export interface SettingsRepository {
   set(key: SettingKey, value: string): Promise<void>;
 }
 
-/** SQLite-backed key/value settings; `set` is a single upsert. */
+/** SQLite-backed key/value settings; `set` is a single upsert in a transaction. */
 export function createSqliteSettingsRepository(db: SqlDatabase): SettingsRepository {
   return {
     async get(key) {
@@ -20,11 +20,15 @@ export function createSqliteSettingsRepository(db: SqlDatabase): SettingsReposit
     },
 
     async set(key, value) {
-      await db.run(
-        `INSERT INTO setting (key, value) VALUES (?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-        [key, value],
-      );
+      // In a transaction so the write queues behind any open one instead of
+      // running inside it and being rolled back with it.
+      await db.transaction(async () => {
+        await db.run(
+          `INSERT INTO setting (key, value) VALUES (?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+          [key, value],
+        );
+      });
     },
   };
 }

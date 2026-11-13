@@ -1,5 +1,5 @@
 import { openEmptyTestDatabase, openTestDatabase } from '@/test-support/sqljsDatabase';
-import { migrate } from './migrate';
+import { DatabaseTooNewError, migrate } from './migrate';
 import { MIGRATIONS } from './schema';
 
 test('applies all migrations to a fresh database', async () => {
@@ -66,4 +66,58 @@ test('v2 drops the body weight column and keeps existing workouts, exercises and
     raw_json: '{"id":1}',
   });
   expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout_set'))?.n).toBe(1);
+});
+
+test('refuses a database newer than the app', async () => {
+  const db = await openTestDatabase();
+  await db.exec(`PRAGMA user_version = ${MIGRATIONS.length + 1}`);
+  await expect(migrate(db, MIGRATIONS)).rejects.toBeInstanceOf(DatabaseTooNewError);
+  const row = await db.first<{ user_version: number }>('PRAGMA user_version');
+  expect(row?.user_version).toBe(MIGRATIONS.length + 1);
+});
+
+async function seedWorkoutWithChildren(db: Awaited<ReturnType<typeof openTestDatabase>>) {
+  await db.run(
+    "INSERT INTO workout VALUES (1, '2026-08-20T17:05:00.000Z', 'A', 500, '{}', '2026-11-12T00:00:00.000Z')",
+  );
+  await db.run(
+    "INSERT INTO workout_exercise VALUES (10, 1, 0, 2, 'Bench Press', 'weight_reps', 180)",
+  );
+  await db.run('INSERT INTO workout_set VALUES (100, 10, 0, 80, 5, 2, NULL, NULL, NULL, 1)');
+}
+
+async function foreignKeysEnabled(db: Awaited<ReturnType<typeof openTestDatabase>>) {
+  const row = await db.first<{ foreign_keys: number }>('PRAGMA foreign_keys');
+  return row?.foreign_keys;
+}
+
+test('a foreign-keys-off step can rebuild a parent table', async () => {
+  const db = await openTestDatabase();
+  await seedWorkoutWithChildren(db);
+  const rebuild = {
+    foreignKeysOff: true as const,
+    sql: `
+      CREATE TABLE workout_new (
+        lyfta_id INTEGER PRIMARY KEY NOT NULL, performed_at TEXT NOT NULL, title TEXT NOT NULL,
+        total_volume_kg REAL, raw_json TEXT NOT NULL, synced_at TEXT NOT NULL);
+      INSERT INTO workout_new SELECT * FROM workout;
+      DROP TABLE workout;
+      ALTER TABLE workout_new RENAME TO workout;`,
+  };
+  expect(await migrate(db, [...MIGRATIONS, rebuild])).toBe(MIGRATIONS.length + 1);
+  expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout'))?.n).toBe(1);
+  expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout_exercise'))?.n).toBe(1);
+  expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout_set'))?.n).toBe(1);
+  expect(await foreignKeysEnabled(db)).toBe(1);
+});
+
+test('a foreign-keys-off step that orphans rows rolls back', async () => {
+  const db = await openTestDatabase();
+  await seedWorkoutWithChildren(db);
+  const orphan = { foreignKeysOff: true as const, sql: 'DELETE FROM workout;' };
+  await expect(migrate(db, [...MIGRATIONS, orphan])).rejects.toThrow(/foreign key violations/);
+  const row = await db.first<{ user_version: number }>('PRAGMA user_version');
+  expect(row?.user_version).toBe(MIGRATIONS.length);
+  expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout'))?.n).toBe(1);
+  expect(await foreignKeysEnabled(db)).toBe(1);
 });

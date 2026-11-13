@@ -1,10 +1,12 @@
+import type { Migration } from './migrate';
+
 export const DATABASE_NAME = 'health-hub.db';
 
 /**
  * Ordered migration steps. Index + 1 is the schema version the step upgrades
  * *to*. Never edit a shipped step; always append a new one.
  */
-export const MIGRATIONS: readonly string[] = [
+export const MIGRATIONS: readonly Migration[] = [
   // v1 — initial schema. Column order matters: tests insert positionally.
   // `duration` and `distance` keep Lyfta's own units until they are confirmed.
   `
