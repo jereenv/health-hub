@@ -1,7 +1,7 @@
 import type { SqlDatabase } from '@/data/db/SqlDatabase';
 
 /** Known setting keys; a closed union keeps typos out of call sites. */
-export type SettingKey = 'lyfta.weightUnit';
+export type SettingKey = 'lyfta.weightUnit' | 'lyfta.parsedWith';
 
 export interface SettingsRepository {
   /** Returns null when the setting has never been set. */

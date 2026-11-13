@@ -13,7 +13,7 @@ const RECENT_COUNT = 5;
 
 interface Snapshot {
   hasKey: boolean;
-  unit: WeightUnit;
+  unit: WeightUnit | null;
   count: number;
   syncState: SyncState;
   recent: Workout[];
@@ -50,7 +50,7 @@ export default function Index() {
     ]);
     return {
       hasKey: key !== null && key !== '',
-      unit: unitSetting === 'lb' ? 'lb' : 'kg',
+      unit: unitSetting === 'lb' || unitSetting === 'kg' ? unitSetting : null,
       count,
       syncState: state,
       recent,
@@ -105,12 +105,6 @@ export default function Index() {
   const removeKey = () =>
     runAction(async () => {
       await secrets.delete(SECRET_KEYS.lyftaApiKey);
-      await refresh();
-    });
-
-  const chooseUnit = (unit: WeightUnit) =>
-    runAction(async () => {
-      await settings.set('lyfta.weightUnit', unit);
       await refresh();
     });
 
@@ -171,11 +165,8 @@ export default function Index() {
           <Button title="Remove" onPress={() => void removeKey()} />
         </View>
 
-        <Text style={styles.section}>Weight unit: {snapshot?.unit ?? 'kg'}</Text>
-        <View style={styles.row}>
-          <Button title="kg" onPress={() => void chooseUnit('kg')} />
-          <Button title="lb" onPress={() => void chooseUnit('lb')} />
-        </View>
+        {/* Detected from Lyfta on the first sync; not user-editable. */}
+        <Text style={styles.section}>Lyfta unit: {snapshot?.unit ?? 'not detected yet'}</Text>
 
         <Text style={styles.section}>Sync</Text>
         <Button title="Sync Lyfta" disabled={syncing} onPress={() => void sync()} />

@@ -108,3 +108,39 @@ test('listIdsInRange returns ids performed inside the inclusive range', async ()
     [],
   );
 });
+
+test('listAll returns every workout newest first with durations', async () => {
+  const { repo, parsed } = await setup();
+  const withDuration = structuredClone(parsed);
+  withDuration[0].workout.durationS = 7609;
+  await repo.upsertMany(withDuration, SYNCED_AT);
+
+  const all = await repo.listAll();
+  expect(all.map((w) => w.lyftaId)).toEqual([1002, 1001]);
+  expect(all[1]).toEqual(withDuration[0].workout);
+  expect(all[1].durationS).toBe(7609);
+});
+
+test('listRaw returns stored raw JSON and sync time', async () => {
+  const { repo, parsed } = await setup();
+  await repo.upsertMany(parsed, SYNCED_AT);
+
+  const raw = await repo.listRaw();
+  expect(raw.map((r) => r.lyftaId).sort()).toEqual([1001, 1002]);
+  expect(raw.every((r) => r.syncedAt === SYNCED_AT)).toBe(true);
+  const first = raw.find((r) => r.lyftaId === 1001);
+  expect(first?.rawJson).toBe(parsed[0].rawJson);
+});
+
+test('listAll never sees a half-written workout during an upsert', async () => {
+  const { repo, parsed } = await setup();
+  // Not awaited: listAll is issued while the upsert's transaction is still open.
+  const writing = repo.upsertMany(parsed, SYNCED_AT);
+  const all = await repo.listAll();
+  await writing;
+
+  expect(all).toHaveLength(2);
+  expect(all.map((w) => w.exercises.map((e) => e.sets.length))).toEqual(
+    [parsed[1], parsed[0]].map((p) => p.workout.exercises.map((e) => e.sets.length)),
+  );
+});

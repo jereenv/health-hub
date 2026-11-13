@@ -20,6 +20,11 @@ export interface WorkoutRepository {
   listIdsInRange(fromIso: string, toIso: string): Promise<number[]>;
   count(): Promise<number>;
   /** Newest first; `beforePerformedAt` is exclusive and pages through history. */
+  /** Reads inside one transaction, so a concurrent upsert is never seen half-written. */
   list(p: { limit: number; beforePerformedAt?: string }): Promise<Workout[]>;
   get(lyftaId: number): Promise<Workout | null>;
+  /** Every workout, newest first, read as one consistent snapshot. */
+  listAll(): Promise<Workout[]>;
+  /** Stored raw Lyfta JSON and original sync time of every workout, for local re-parsing. */
+  listRaw(): Promise<{ lyftaId: number; rawJson: string; syncedAt: string }[]>;
 }

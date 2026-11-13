@@ -49,7 +49,8 @@ function placeholders(count: number): string {
 
 /**
  * Loads exercises and sets for the given workout rows in two queries (not one per workout)
- * and assembles them into `Workout` objects, preserving the order of `rows`.
+ * and assembles them into `Workout` objects, preserving the order of `rows`. Runs inside the
+ * caller's transaction and never opens its own (transactions are not re-entrant).
  */
 async function hydrate(db: SqlDatabase, rows: readonly WorkoutRow[]): Promise<Workout[]> {
   const exercisesByWorkout = new Map<number, WorkoutExercise[]>();
@@ -234,22 +235,43 @@ export function createSqliteWorkoutRepository(db: SqlDatabase): WorkoutRepositor
         params.push(beforePerformedAt);
       }
       params.push(limit);
-      const rows = await db.all<WorkoutRow>(
-        `SELECT ${WORKOUT_COLUMNS} FROM workout ${where}
-         ORDER BY performed_at DESC, lyfta_id DESC LIMIT ?`,
-        params,
-      );
-      return hydrate(db, rows);
+      // One transaction so the workout rows and their children come from the same snapshot.
+      return db.transaction(async () => {
+        const rows = await db.all<WorkoutRow>(
+          `SELECT ${WORKOUT_COLUMNS} FROM workout ${where}
+           ORDER BY performed_at DESC, lyfta_id DESC LIMIT ?`,
+          params,
+        );
+        return hydrate(db, rows);
+      });
     },
 
     async get(lyftaId) {
-      const row = await db.first<WorkoutRow>(
-        `SELECT ${WORKOUT_COLUMNS} FROM workout WHERE lyfta_id = ?`,
-        [lyftaId],
+      return db.transaction(async () => {
+        const row = await db.first<WorkoutRow>(
+          `SELECT ${WORKOUT_COLUMNS} FROM workout WHERE lyfta_id = ?`,
+          [lyftaId],
+        );
+        if (!row) return null;
+        const [workout] = await hydrate(db, [row]);
+        return workout;
+      });
+    },
+
+    async listAll() {
+      return db.transaction(async () => {
+        const rows = await db.all<WorkoutRow>(
+          `SELECT ${WORKOUT_COLUMNS} FROM workout ORDER BY performed_at DESC, lyfta_id DESC`,
+        );
+        return hydrate(db, rows);
+      });
+    },
+
+    async listRaw() {
+      const rows = await db.all<{ lyfta_id: number; raw_json: string; synced_at: string }>(
+        'SELECT lyfta_id, raw_json, synced_at FROM workout ORDER BY lyfta_id',
       );
-      if (!row) return null;
-      const [workout] = await hydrate(db, [row]);
-      return workout;
+      return rows.map((r) => ({ lyftaId: r.lyfta_id, rawJson: r.raw_json, syncedAt: r.synced_at }));
     },
   };
 }
