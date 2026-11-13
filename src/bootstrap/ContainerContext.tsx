@@ -1,8 +1,12 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { ActivityIndicator, Button, Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { AppContainer } from './container';
 import { getAppContainer, resetAppContainer } from './container';
+import { EmptyState } from '@/ui/components/EmptyState';
+import { Skeleton } from '@/ui/components/Skeleton';
+import { useTheme } from '@/ui/theme/ThemeProvider';
+import { SPACE } from '@/ui/theme/tokens';
 
 const ContainerContext = createContext<AppContainer | null>(null);
 
@@ -10,6 +14,23 @@ type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; container: AppContainer }
   | { status: 'failed'; message: string };
+
+/** Full-screen themed backdrop for the states shown before the container is ready. */
+function Backdrop({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: 'center',
+        padding: SPACE.screen,
+        backgroundColor: colors.bg,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
 
 /**
  * Provides the app's single container, showing a loading state and, if opening fails, the error
@@ -48,17 +69,25 @@ export function ContainerProvider({ children }: { children: React.ReactNode }): 
 
   if (state.status === 'loading') {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
-      </View>
+      <Backdrop>
+        <View style={{ gap: SPACE.stack }}>
+          <Skeleton width="60%" height={40} />
+          <Skeleton width="100%" height={120} radius={24} />
+          <Skeleton width="100%" height={120} radius={24} />
+        </View>
+      </Backdrop>
     );
   }
   if (state.status === 'failed') {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <Text>Could not start: {state.message}</Text>
-        <Button title="Try again" onPress={retry} />
-      </View>
+      <Backdrop>
+        <EmptyState
+          icon="info"
+          title="Could not start"
+          body={state.message}
+          action={{ label: 'Try again', onPress: retry }}
+        />
+      </Backdrop>
     );
   }
   return <ContainerContext.Provider value={state.container}>{children}</ContainerContext.Provider>;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Button, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useContainer } from '@/bootstrap/ContainerContext';
@@ -8,6 +8,8 @@ import type { SyncState } from '@/data/sync/SyncStateRepository';
 import { LB_TO_KG } from '@/data/lyfta/parseWorkouts';
 import { localDateKey } from '@/domain/time/localDate';
 import type { Workout, WeightUnit } from '@/domain/workouts/types';
+import { AppText } from '@/ui/components/AppText';
+import { useTheme } from '@/ui/theme/ThemeProvider';
 
 const RECENT_COUNT = 5;
 
@@ -32,6 +34,7 @@ function formatKgAndLb(kg: number | null): string {
 /** Temporary developer screen that exercises the Lyfta pipeline; Plan 2 replaces it. */
 export default function Index() {
   const { workouts, syncState, settings, secrets, sync } = useContainer();
+  const { colors } = useTheme();
   const { running, lastResult, dataVersion } = useSyncExternalStore(
     sync.subscribe,
     sync.getSnapshot,
@@ -113,12 +116,19 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.heading}>Health Hub (developer)</Text>
+        <AppText variant="body" style={styles.heading}>
+          Health Hub (developer)
+        </AppText>
 
-        <Text style={styles.section}>Lyfta key</Text>
-        <Text testID="key-status">{snapshot?.hasKey === true ? 'Key saved' : 'No key'}</Text>
+        <AppText variant="body" style={styles.section}>
+          Lyfta key
+        </AppText>
+        <AppText variant="body" testID="key-status">
+          {snapshot?.hasKey === true ? 'Key saved' : 'No key'}
+        </AppText>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: colors.ink, borderColor: colors.muted }]}
+          placeholderTextColor={colors.muted}
           value={keyInput}
           onChangeText={setKeyInput}
           secureTextEntry
@@ -132,43 +142,59 @@ export default function Index() {
         </View>
 
         {/* Detected from Lyfta on the first sync; not user-editable. */}
-        <Text style={styles.section}>Lyfta unit: {snapshot?.unit ?? 'not detected yet'}</Text>
+        <AppText variant="body" style={styles.section}>
+          Lyfta unit: {snapshot?.unit ?? 'not detected yet'}
+        </AppText>
 
-        <Text style={styles.section}>Sync</Text>
+        <AppText variant="body" style={styles.section}>
+          Sync
+        </AppText>
         <View style={styles.row}>
           {/* `sync` never rejects, and a second tap while one is in flight shares that run. */}
           <Button title="Sync" disabled={running} onPress={() => void sync.run()} />
           {/* A full re-backfill: forgets sync progress and retries skipped workouts. */}
           <Button title="Re-sync" disabled={running} onPress={() => void sync.resync()} />
         </View>
-        <Text testID="sync-status">
+        <AppText variant="body" testID="sync-status">
           {running
             ? 'Syncing...'
             : lastResult === null
               ? 'Not run yet'
               : `Workouts: ${lastResult.workouts.status} | Schedule: ${lastResult.schedule.status}`}
-        </Text>
-        <Text testID="sync-result">{lastResult === null ? '' : JSON.stringify(lastResult)}</Text>
+        </AppText>
+        <AppText variant="body" testID="sync-result">
+          {lastResult === null ? '' : JSON.stringify(lastResult)}
+        </AppText>
 
-        <Text style={styles.section}>Stored data</Text>
-        <Text testID="workout-count">Workouts: {snapshot?.count ?? '-'}</Text>
-        <Text>Last success: {snapshot?.syncState.lastSuccessAt ?? 'never'}</Text>
-        <Text>Last error: {snapshot?.syncState.lastError ?? 'none'}</Text>
-        {loadError !== null && <Text>Load error: {loadError}</Text>}
-        {actionError !== null && <Text>Error: {actionError}</Text>}
+        <AppText variant="body" style={styles.section}>
+          Stored data
+        </AppText>
+        <AppText variant="body" testID="workout-count">
+          Workouts: {snapshot?.count ?? '-'}
+        </AppText>
+        <AppText variant="body">
+          Last success: {snapshot?.syncState.lastSuccessAt ?? 'never'}
+        </AppText>
+        <AppText variant="body">Last error: {snapshot?.syncState.lastError ?? 'none'}</AppText>
+        {loadError !== null && <AppText variant="body">Load error: {loadError}</AppText>}
+        {actionError !== null && <AppText variant="body">Error: {actionError}</AppText>}
 
         {/* TEMPORARY (Plan 2 replaces this screen): compare stored weights with the Lyfta app once. */}
-        <Text style={styles.section}>Weight check (newest workout, first set)</Text>
-        <Text testID="weight-check">
+        <AppText variant="body" style={styles.section}>
+          Weight check (newest workout, first set)
+        </AppText>
+        <AppText variant="body" testID="weight-check">
           First set: {formatKgAndLb(snapshot?.recent[0]?.exercises[0]?.sets[0]?.weightKg ?? null)}
-        </Text>
+        </AppText>
 
-        <Text style={styles.section}>Newest {RECENT_COUNT}</Text>
+        <AppText variant="body" style={styles.section}>
+          Newest {RECENT_COUNT}
+        </AppText>
         {snapshot?.recent.map((workout) => (
-          <Text key={workout.lyftaId}>
+          <AppText variant="body" key={workout.lyftaId}>
             {localDateKey(workout.performedAt)} | {workout.title} | {workout.exercises.length} ex |{' '}
             {countSets(workout)} sets
-          </Text>
+          </AppText>
         ))}
       </ScrollView>
     </SafeAreaView>
@@ -180,6 +206,6 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 8 },
   heading: { fontSize: 20, fontWeight: '600' },
   section: { marginTop: 12, fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#888', padding: 8 },
+  input: { borderWidth: 1, padding: 8 },
   row: { flexDirection: 'row', gap: 16 },
 });
