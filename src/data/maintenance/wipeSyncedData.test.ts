@@ -1,3 +1,4 @@
+import { createSqliteHealthConnectRepository } from '@/data/healthconnect/HealthConnectRepository';
 import { createSqliteProfileRepository } from '@/data/profile/ProfileRepository';
 import { createSqliteScheduleRepository } from '@/data/schedule/ScheduleRepository';
 import { createSqliteSettingsRepository } from '@/data/settings/SettingsRepository';
@@ -54,4 +55,54 @@ test('wipeSyncedData deletes workouts, sets, schedule and sync state only', asyn
   expect(await count(db, 'sync_state')).toBe(0);
   expect(await settings.get('display.weightUnit')).toBe('lb');
   expect((await profile.getCurrent())?.heightCm).toBe(180);
+});
+
+test('wipe also clears the Health Connect tables and health_connect scale readings but keeps a ble reading', async () => {
+  const db = await openTestDatabase();
+  const healthConnect = createSqliteHealthConnectRepository(db);
+  await healthConnect.applyImport({
+    from: '2026-11-01',
+    activity: [
+      { date: '2026-11-01', steps: 1, distanceM: null, activeKcal: null, totalKcal: null },
+    ],
+    sleep: [
+      {
+        hcId: 's1',
+        startAt: AT,
+        endAt: AT,
+        wakeDate: '2026-11-01',
+        asleepS: 1,
+        awakeS: 0,
+        lightS: null,
+        deepS: null,
+        remS: null,
+        hasStages: false,
+      },
+    ],
+    heartRate: [{ date: '2026-11-01', minBpm: 50, avgBpm: 60, maxBpm: 70 }],
+    watchBodyFat: [{ hcId: 'f1', measuredAt: AT, bodyFatPct: 20, origin: 'watch' }],
+    weighIns: [
+      { measuredAt: AT, weightKg: 80, sourceRecordId: 'w1', rawPayload: '{}', bodyFatPct: 18 },
+    ],
+    syncedAt: AT,
+  });
+  await db.run(
+    `INSERT INTO scale_reading (measured_at, weight_kg, source, source_record_id)
+     VALUES (?, 79, 'ble', 'b1')`,
+    [AT],
+  );
+  await createSqliteSyncStateRepository(db).recordSuccess('health_connect', AT, null);
+
+  await wipeSyncedData(db);
+
+  expect(await healthConnect.counts()).toEqual({
+    activityDays: 0,
+    sleepSessions: 0,
+    heartRateDays: 0,
+    watchBodyFat: 0,
+    weighIns: 0,
+  });
+  expect(await count(db, 'legacy_body_value')).toBe(0);
+  expect(await count(db, 'sync_state')).toBe(0);
+  expect((await healthConnect.listScaleReadings()).map((r) => r.source)).toEqual(['ble']);
 });

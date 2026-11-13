@@ -64,4 +64,35 @@ export const MIGRATIONS: readonly Migration[] = [
     height_cm REAL, birth_date TEXT, sex TEXT, goal_weight_kg REAL, bmi_cutoffs TEXT NOT NULL);
   CREATE INDEX idx_profile_version_effective ON profile_version (effective_from);
   `,
+  // v7 — Health Connect imports. Daily and session tables are replaced over a trailing window on
+  // every sync; watch_body_fat and the health_connect rows of scale_reading are rebuilt in full.
+  // scale_reading and legacy_body_value also take BLE readings in a later plan, so they keep their
+  // own keys. Dates are calendar days (YYYY-MM-DD) in the phone's zone; instants are ISO UTC.
+  `
+  CREATE TABLE activity_daily (
+    date TEXT PRIMARY KEY NOT NULL, steps INTEGER, distance_m REAL, active_kcal REAL,
+    total_kcal REAL, synced_at TEXT NOT NULL);
+  CREATE TABLE sleep_session (
+    hc_id TEXT PRIMARY KEY NOT NULL, start_at TEXT NOT NULL, end_at TEXT NOT NULL,
+    wake_date TEXT NOT NULL, asleep_s INTEGER NOT NULL, awake_s INTEGER NOT NULL,
+    light_s INTEGER, deep_s INTEGER, rem_s INTEGER, has_stages INTEGER NOT NULL,
+    synced_at TEXT NOT NULL);
+  CREATE INDEX idx_sleep_session_wake_date ON sleep_session (wake_date);
+  CREATE TABLE heart_rate_daily (
+    date TEXT PRIMARY KEY NOT NULL, min_bpm INTEGER NOT NULL, avg_bpm REAL NOT NULL,
+    max_bpm INTEGER NOT NULL, synced_at TEXT NOT NULL);
+  CREATE TABLE watch_body_fat (
+    hc_id TEXT PRIMARY KEY NOT NULL, measured_at TEXT NOT NULL, body_fat_pct REAL NOT NULL,
+    origin TEXT NOT NULL);
+  CREATE INDEX idx_watch_body_fat_measured_at ON watch_body_fat (measured_at);
+  CREATE TABLE scale_reading (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, measured_at TEXT NOT NULL, weight_kg REAL NOT NULL,
+    impedance_ohm REAL, source TEXT NOT NULL, source_record_id TEXT NOT NULL, raw_payload TEXT,
+    device_id TEXT, UNIQUE (source, source_record_id));
+  CREATE INDEX idx_scale_reading_measured_at ON scale_reading (measured_at);
+  CREATE TABLE legacy_body_value (
+    reading_id INTEGER NOT NULL REFERENCES scale_reading (id) ON DELETE CASCADE,
+    metric TEXT NOT NULL, value REAL NOT NULL, origin TEXT NOT NULL,
+    PRIMARY KEY (reading_id, metric));
+  `,
 ];

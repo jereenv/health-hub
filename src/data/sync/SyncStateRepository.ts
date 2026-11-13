@@ -1,7 +1,7 @@
 import type { SqlDatabase } from '@/data/db/SqlDatabase';
 
 /** Data sources that sync into the app. Later plans widen this union. */
-export type SyncSource = 'lyfta' | 'lyfta_schedule';
+export type SyncSource = 'lyfta' | 'lyfta_schedule' | 'health_connect';
 
 /** Why deleting workouts that vanished from Lyfta is on hold, and which workouts are affected. */
 export interface DeletionPause {

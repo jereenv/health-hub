@@ -185,3 +185,18 @@ test.each([
   await db.run("INSERT INTO sync_state (source, deletion_pause) VALUES ('lyfta', ?)", [stored]);
   expect((await repo.get('lyfta')).deletionPause).toBeNull();
 });
+
+test('the health_connect source round-trips like the others', async () => {
+  const repo = await setup();
+  await repo.recordSuccess('health_connect', '2026-11-13T10:00:00.000Z', '{"v":1}');
+  expect(await repo.get('health_connect')).toMatchObject({
+    source: 'health_connect',
+    cursor: '{"v":1}',
+    lastSuccessAt: '2026-11-13T10:00:00.000Z',
+  });
+  await repo.recordError('health_connect', 'boom', '2026-11-13T11:00:00.000Z');
+  expect((await repo.get('health_connect')).lastError).toBe('boom');
+  await repo.reset('health_connect');
+  expect((await repo.get('health_connect')).cursor).toBeNull();
+  expect((await repo.get('lyfta')).cursor).toBeNull();
+});

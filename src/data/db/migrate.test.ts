@@ -264,3 +264,40 @@ test('a foreign-keys-off step that orphans rows rolls back', async () => {
   expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout'))?.n).toBe(1);
   expect(await foreignKeysEnabled(db)).toBe(1);
 });
+
+test('v7 creates the Health Connect tables', async () => {
+  const db = await openEmptyTestDatabase();
+  await migrate(db, MIGRATIONS);
+  expect(MIGRATIONS.length).toBeGreaterThanOrEqual(7);
+  const tables = await db.all<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+  );
+  expect(tables.map((t) => t.name)).toEqual(
+    expect.arrayContaining([
+      'activity_daily',
+      'sleep_session',
+      'heart_rate_daily',
+      'watch_body_fat',
+      'scale_reading',
+      'legacy_body_value',
+    ]),
+  );
+});
+
+test('v7 keeps existing workouts and cascades legacy body values with their reading', async () => {
+  const db = await openEmptyTestDatabase();
+  await migrate(db, MIGRATIONS.slice(0, 6));
+  await db.run(
+    `INSERT INTO workout (lyfta_id, performed_at, title, raw_json, synced_at)
+     VALUES (1, '2026-08-20T17:05:00.000Z', 'A', '{}', '2026-11-12T00:00:00.000Z')`,
+  );
+  expect(await migrate(db, MIGRATIONS)).toBe(MIGRATIONS.length);
+  expect(await db.first('SELECT * FROM workout WHERE lyfta_id = 1')).not.toBeNull();
+  await db.run(
+    `INSERT INTO scale_reading (id, measured_at, weight_kg, source, source_record_id)
+     VALUES (1, '2026-11-01T00:00:00.000Z', 80, 'health_connect', 'w')`,
+  );
+  await db.run("INSERT INTO legacy_body_value VALUES (1, 'body_fat_pct', 18, 'movinglife')");
+  await db.run('DELETE FROM scale_reading WHERE id = 1');
+  expect(await db.first('SELECT * FROM legacy_body_value')).toBeNull();
+});
