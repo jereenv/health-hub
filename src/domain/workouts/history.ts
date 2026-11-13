@@ -1,5 +1,6 @@
 import { addDays, localDateKey, weekStartKey, type DateKey } from '@/domain/time/localDate';
 import { workoutVolumeKg } from './metrics';
+import { compareWorkouts } from './records';
 import type { Workout } from './types';
 
 export interface WeekGroup {
@@ -26,12 +27,6 @@ export interface HeatCell {
 
 const DAYS_PER_WEEK = 7;
 const MAX_HEAT_LEVEL = 4;
-
-/** Oldest first: by performedAt, then lyftaId (the order records.ts uses). */
-export function compareWorkouts(a: Workout, b: Workout): number {
-  if (a.performedAt !== b.performedAt) return a.performedAt < b.performedAt ? -1 : 1;
-  return a.lyftaId - b.lyftaId;
-}
 
 /** Workouts grouped by the Monday-first week of their local day. Newest week and workout first. */
 export function groupByWeek(workouts: readonly Workout[]): WeekGroup[] {

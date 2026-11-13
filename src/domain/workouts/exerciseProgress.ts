@@ -1,6 +1,6 @@
 import { localDateKey, type DateKey } from '@/domain/time/localDate';
-import { compareWorkouts } from './history';
 import { estimateOneRepMaxKg, isScoredSet, type ScoredSet } from './metrics';
+import { compareWorkouts } from './records';
 import type { Workout } from './types';
 
 export interface ExerciseSession {

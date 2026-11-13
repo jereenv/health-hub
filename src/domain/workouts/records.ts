@@ -32,7 +32,8 @@ interface Bests {
   e1rm?: number;
 }
 
-function compareWorkouts(a: Workout, b: Workout): number {
+/** Oldest first: by performedAt, then lyftaId. */
+export function compareWorkouts(a: Workout, b: Workout): number {
   if (a.performedAt !== b.performedAt) return a.performedAt < b.performedAt ? -1 : 1;
   return a.lyftaId - b.lyftaId;
 }
