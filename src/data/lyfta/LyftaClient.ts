@@ -17,7 +17,13 @@ export interface LyftaClientDeps {
 
 export interface LyftaClient {
   listWorkouts(p: { page: number; limit: number; from?: string; to?: string }): Promise<unknown>;
-  listSchedule(p: { from?: string; to?: string; includeCompleted?: boolean }): Promise<unknown>;
+  listSchedule(p: {
+    from?: string;
+    to?: string;
+    includeCompleted?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<unknown>;
   getProfile(): Promise<unknown>;
   getExerciseProgress(): Promise<unknown>;
 }
@@ -26,6 +32,8 @@ const DEFAULT_MIN_INTERVAL_MS = 1100;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_TIMEOUT_MS = 30000;
 const INITIAL_BACKOFF_MS = 2000;
+/** The longest a Retry-After header can make us wait; a larger value is treated as this. */
+export const MAX_RETRY_AFTER_MS = 120_000;
 
 type QueryValue = string | number | boolean | undefined;
 
@@ -38,12 +46,17 @@ function buildQuery(params: Record<string, QueryValue>): string {
   return parts.length === 0 ? '' : `?${parts.join('&')}`;
 }
 
-/** Seconds from a Retry-After header, or null when absent or not a plain number. */
+/**
+ * Milliseconds from a Retry-After header, capped at MAX_RETRY_AFTER_MS. Null when the header is
+ * absent, blank or not a plain number, so the caller falls back to its own backoff.
+ */
 function retryAfterMs(response: Response): number | null {
-  const header = response.headers.get('Retry-After');
-  if (header === null) return null;
+  const header = response.headers.get('Retry-After')?.trim();
+  if (header === undefined || header === '') return null;
   const seconds = Number(header);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : null;
+  return Number.isFinite(seconds) && seconds >= 0
+    ? Math.min(seconds * 1000, MAX_RETRY_AFTER_MS)
+    : null;
 }
 
 /**
@@ -147,8 +160,8 @@ export function createLyftaClient(deps: LyftaClientDeps): LyftaClient {
   return {
     listWorkouts: ({ page, limit, from, to }) =>
       request('/api/v1/workouts', { page, limit, from, to }),
-    listSchedule: ({ from, to, includeCompleted }) =>
-      request('/api/v1/schedule', { from, to, include_completed: includeCompleted }),
+    listSchedule: ({ from, to, includeCompleted, page, limit }) =>
+      request('/api/v1/schedule', { from, to, include_completed: includeCompleted, page, limit }),
     getProfile: () => request('/api/v1/profile'),
     getExerciseProgress: () => request('/api/v1/exercises/progress'),
   };

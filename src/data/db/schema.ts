@@ -47,4 +47,13 @@ export const MIGRATIONS: readonly Migration[] = [
   ALTER TABLE sync_state ADD COLUMN last_skipped INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE sync_state ADD COLUMN deletion_pause TEXT;
   `,
+  // v5 — the owner's Lyfta schedule: planned and recently completed workouts around today.
+  // scheduled_date is a calendar day (YYYY-MM-DD) in the phone's zone, not a timestamp.
+  `
+  CREATE TABLE scheduled_workout (
+    lyfta_id TEXT PRIMARY KEY NOT NULL, scheduled_date TEXT NOT NULL, title TEXT NOT NULL,
+    template_id TEXT, source TEXT, status TEXT, completed INTEGER NOT NULL,
+    raw_json TEXT NOT NULL, synced_at TEXT NOT NULL);
+  CREATE INDEX idx_scheduled_workout_date ON scheduled_workout (scheduled_date);
+  `,
 ];

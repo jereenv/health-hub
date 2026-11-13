@@ -8,28 +8,19 @@ import type { WeightUnit } from '@/domain/workouts/types';
 import type { LyftaClient } from './LyftaClient';
 import { LyftaError } from './LyftaError';
 import { readAccountUnit } from './lyftaUnit';
+import { LYFTA_MAX_PAGES, pageCapFor, tooManyPagesError } from './paging';
 import { parseWorkoutPage } from './parseWorkouts';
 
 /** Workouts requested per page; matches the largest page the Lyfta API serves. */
 export const LYFTA_PAGE_SIZE = 100;
 
-/** Hard ceiling on pages fetched in one listing, whatever the server claims. */
-export const LYFTA_MAX_PAGES = 200;
+/** Re-exported for existing callers; the constant lives with the shared paging helpers. */
+export { LYFTA_MAX_PAGES };
 /** How long a kept `unreadable` deletion pause holds before the confirmation is tried again. */
 export const DELETION_PAUSE_RETRY_MS = 24 * 60 * 60 * 1000;
-/** Pages beyond the record count's own, tolerating records added while paging. */
-const PAGE_CAP_SLACK = 2;
-
-/**
- * The most pages a listing may legitimately take given the server's `total_records`; a server that
- * pages beyond this is misbehaving. Unknown totals fall back to the hard ceiling.
- */
+/** The most pages a workouts listing may legitimately take given the server's `total_records`. */
 export function pageCap(totalRecords: number | null): number {
-  if (totalRecords === null) return LYFTA_MAX_PAGES;
-  return Math.min(
-    LYFTA_MAX_PAGES,
-    Math.ceil(Math.max(0, totalRecords) / LYFTA_PAGE_SIZE) + PAGE_CAP_SLACK,
-  );
+  return pageCapFor(totalRecords, LYFTA_PAGE_SIZE);
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -167,7 +158,7 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
       let cap: number | null = null;
       for (let page = startPage; ; page += 1) {
         if (cap !== null && page > cap) {
-          throw new LyftaError('invalid_response', 'Lyfta returned more pages than expected');
+          throw tooManyPagesError();
         }
         const json = await client.listWorkouts({ page, limit: LYFTA_PAGE_SIZE, ...range });
         const parsed = parseWorkoutPage(json, unit);

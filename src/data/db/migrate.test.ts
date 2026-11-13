@@ -136,6 +136,41 @@ test('v4 adds sync_state skipped and deletion pause columns, keeping existing ro
   });
 });
 
+test('v5 adds the scheduled_workout table and date index, keeping existing rows', async () => {
+  const db = await openEmptyTestDatabase();
+  await migrate(db, MIGRATIONS.slice(0, 4));
+  await db.run(
+    `INSERT INTO sync_state (source, cursor, last_success_at) VALUES ('lyfta', 'c', '2026-11-12T10:00:00.000Z')`,
+  );
+
+  expect(await migrate(db, MIGRATIONS)).toBe(MIGRATIONS.length);
+  expect(MIGRATIONS.length).toBeGreaterThanOrEqual(5);
+
+  const columns = await db.all<{ name: string; notnull: number; pk: number }>(
+    'PRAGMA table_info(scheduled_workout)',
+  );
+  expect(columns.map((c) => c.name)).toEqual([
+    'lyfta_id',
+    'scheduled_date',
+    'title',
+    'template_id',
+    'source',
+    'status',
+    'completed',
+    'raw_json',
+    'synced_at',
+  ]);
+  expect(columns.find((c) => c.name === 'lyfta_id')).toMatchObject({ pk: 1, notnull: 1 });
+  expect(columns.find((c) => c.name === 'template_id')).toMatchObject({ notnull: 0 });
+  const indexes = await db.all<{ name: string }>('PRAGMA index_list(scheduled_workout)');
+  expect(indexes.map((i) => i.name)).toContain('idx_scheduled_workout_date');
+  expect(
+    await db.first<{ cursor: string }>("SELECT cursor FROM sync_state WHERE source = 'lyfta'"),
+  ).toEqual({
+    cursor: 'c',
+  });
+});
+
 test('refuses a database newer than the app', async () => {
   const db = await openTestDatabase();
   await db.exec(`PRAGMA user_version = ${MIGRATIONS.length + 1}`);

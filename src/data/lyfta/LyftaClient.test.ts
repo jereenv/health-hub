@@ -1,5 +1,5 @@
 import { LyftaError, type LyftaErrorKind } from './LyftaError';
-import { createLyftaClient, type LyftaClientDeps } from './LyftaClient';
+import { createLyftaClient, MAX_RETRY_AFTER_MS, type LyftaClientDeps } from './LyftaClient';
 
 const KEY = 'test-key';
 
@@ -104,6 +104,50 @@ describe('createLyftaClient', () => {
 
     expect(await client.getProfile()).toEqual({ ok: true });
     expect(sleeps).toEqual([5000]);
+  });
+
+  test('listSchedule sends range, completed flag, page and limit', async () => {
+    const { client, fetchFn } = setup([jsonResponse({ workouts: [] })]);
+
+    await client.listSchedule({
+      from: '2026-11-04',
+      to: '2026-12-11',
+      includeCompleted: true,
+      page: 2,
+      limit: 100,
+    });
+
+    const [url] = fetchFn.mock.calls[0] as unknown as [string];
+    expect(url).toBe(
+      'https://my.lyfta.app/api/v1/schedule?from=2026-11-04&to=2026-12-11&include_completed=true&page=2&limit=100',
+    );
+  });
+
+  test.each(['', '   '])('treats an empty Retry-After (%j) as absent', async (header) => {
+    const { client, sleeps } = setup(
+      [
+        new Response('slow down', { status: 429, headers: { 'Retry-After': header } }),
+        jsonResponse({ ok: true }),
+      ],
+      { minIntervalMs: 0 },
+    );
+
+    await client.getProfile();
+    expect(sleeps).toEqual([2000]);
+  });
+
+  test('caps Retry-After at 120 s', async () => {
+    const { client, sleeps } = setup(
+      [
+        new Response('slow down', { status: 429, headers: { 'Retry-After': '3600' } }),
+        jsonResponse({ ok: true }),
+      ],
+      { minIntervalMs: 0 },
+    );
+
+    await client.getProfile();
+    expect(sleeps).toEqual([MAX_RETRY_AFTER_MS]);
+    expect(MAX_RETRY_AFTER_MS).toBe(120_000);
   });
 
   test('backs off 2s, 4s, 8s then fails as rate_limited', async () => {

@@ -1,0 +1,45 @@
+{
+  "status": true,
+  "count": 3,
+  "total_records": 3,
+  "total_pages": 1,
+  "current_page": 1,
+  "limit": 100,
+  "from": "2026-01-04",
+  "to": "2026-02-11",
+  "workouts": [
+    {
+      "id": "sched-1001",
+      "source": "program",
+      "template_id": "tmpl-2001",
+      "title": "Lower Strength B",
+      "scheduled_date": "2026-01-20",
+      "scheduled_time": null,
+      "status": "scheduled",
+      "is_completed": false,
+      "note": null
+    },
+    {
+      "id": "sched-1002",
+      "source": "program",
+      "template_id": "tmpl-2002",
+      "title": "Upper Hypertrophy A",
+      "scheduled_date": "2026-01-18",
+      "scheduled_time": null,
+      "status": "completed",
+      "is_completed": true,
+      "note": null
+    },
+    {
+      "id": "sched-1003",
+      "source": "manual",
+      "template_id": "tmpl-2003",
+      "title": "Conditioning",
+      "scheduled_date": "soon",
+      "scheduled_time": null,
+      "status": "scheduled",
+      "is_completed": false,
+      "note": null
+    }
+  ]
+}
