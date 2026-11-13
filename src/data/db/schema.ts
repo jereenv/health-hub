@@ -34,4 +34,11 @@ export const MIGRATIONS: readonly Migration[] = [
   // v2 — Lyfta's workout body weight is hand-entered and never used; body weight comes from the
   // scale and Health Connect. The original value remains in workout.raw_json.
   'ALTER TABLE workout DROP COLUMN body_weight_kg;',
+  // v3 — stores Lyfta's workout duration. Volume is always computed from completed sets, so the
+  // unused total_volume_kg is dropped; the original value remains in workout.raw_json. Neither
+  // statement rebuilds the table, so foreign keys need not be switched off.
+  `
+  ALTER TABLE workout ADD COLUMN duration_s INTEGER;
+  ALTER TABLE workout DROP COLUMN total_volume_kg;
+  `,
 ];

@@ -28,6 +28,7 @@ export interface Workout {
   lyftaId: number;
   performedAt: string;
   title: string;
-  totalVolumeKg: number | null;
+  /** Lyfta's `workout_duration` in whole seconds; null when absent or unparseable. */
+  durationS: number | null;
   exercises: WorkoutExercise[];
 }

@@ -7,6 +7,7 @@ import type { WeightUnit } from '@/domain/workouts/types';
 
 import type { LyftaClient } from './LyftaClient';
 import { LyftaError } from './LyftaError';
+import { readAccountUnit } from './lyftaUnit';
 import { parseWorkoutPage } from './parseWorkouts';
 
 /** Workouts requested per page; matches the largest page the Lyfta API serves. */
@@ -67,17 +68,7 @@ async function resolveWeightUnit(
   if (saved === 'lb' || saved === 'kg') return saved;
 
   const progress = await client.getExerciseProgress();
-  const raw =
-    typeof progress === 'object' && progress !== null
-      ? (progress as Record<string, unknown>).weight_unit
-      : null;
-  const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-  const unit: WeightUnit | null =
-    normalized === 'lb' || normalized === 'lbs'
-      ? 'lb'
-      : normalized === 'kg' || normalized === 'kgs'
-        ? 'kg'
-        : null;
+  const unit = readAccountUnit(progress);
   // Never guess: a wrong unit would silently scale every stored weight.
   if (unit === null) throw new Error(WEIGHT_UNIT_ERROR);
   await settings.set('lyfta.weightUnit', unit);

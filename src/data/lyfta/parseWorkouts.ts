@@ -5,7 +5,10 @@ import type { Workout, WorkoutExercise, WorkoutSet, WeightUnit } from '@/domain/
 import { LB_TO_KG } from '@/domain/format/units';
 
 import { LyftaError } from './LyftaError';
+import { parseDurationSeconds } from './parseDuration';
+import { parseLyftaInstant } from './parseLyftaDates';
 import { parseNumeric } from './parseNumeric';
+import { parseWeightUnit } from './lyftaUnit';
 
 /** Re-exported: the constant lives in the domain layer, which must not import from data. */
 export { LB_TO_KG };
@@ -22,46 +25,48 @@ export interface ParsedWorkoutPage {
   skipped: number;
   currentPage: number;
   totalPages: number;
+  /** The envelope's `total_records` (number or numeric string); null when absent. */
+  totalRecords: number | null;
 }
 
-// Lyfta sends numbers as strings or numbers depending on the field, so accept either and
-// normalise later with parseNumeric.
-const looseNumber = z.union([z.string(), z.number()]).nullish();
+/** Bump when parsing changes in a way that makes stored `raw_json` worth re-parsing. */
+export const WORKOUT_PARSER_VERSION = 2;
 
+// Every field is optional and loosely typed: a malformed field we ignore (or can default) must
+// never cause a whole workout to be skipped. Each value is validated by hand below.
 const setSchema = z.object({
-  weight: looseNumber,
-  reps: looseNumber,
-  rir: looseNumber,
-  duration: looseNumber,
-  distance: looseNumber,
-  set_type_id: looseNumber,
-  is_completed: z.boolean().nullish(),
+  weight: z.unknown().optional(),
+  reps: z.unknown().optional(),
+  rir: z.unknown().optional(),
+  duration: z.unknown().optional(),
+  distance: z.unknown().optional(),
+  set_type_id: z.unknown().optional(),
+  is_completed: z.unknown().optional(),
 });
 
 const exerciseSchema = z.object({
-  exercise_id: z.number(),
+  exercise_id: z.unknown().optional(),
   // Lyfta really spells this field "excercise_name".
-  excercise_name: z.string(),
-  exercise_type: z.string(),
-  exercise_rest_time: looseNumber,
-  sets: z.array(setSchema).nullish(),
+  excercise_name: z.unknown().optional(),
+  exercise_type: z.unknown().optional(),
+  exercise_rest_time: z.unknown().optional(),
+  sets: z.unknown().optional(),
 });
 
 const workoutSchema = z.object({
-  id: z.number(),
-  title: z.string(),
-  workout_perform_date: z
-    .string()
-    .refine((value) => !Number.isNaN(new Date(value).getTime()), 'invalid date'),
-  total_volume: looseNumber,
-  body_weight: looseNumber,
-  exercises: z.array(exerciseSchema).nullish(),
+  id: z.unknown().optional(),
+  title: z.unknown().optional(),
+  workout_perform_date: z.unknown().optional(),
+  workout_duration: z.unknown().optional(),
+  weight_unit: z.unknown().optional(),
+  exercises: z.unknown().optional(),
 });
 
 const pageSchema = z.object({
   workouts: z.array(z.unknown()),
   current_page: z.number().default(1),
   total_pages: z.number().default(1),
+  total_records: z.unknown().optional(),
 });
 
 function toKg(value: unknown, unit: WeightUnit): number | null {
@@ -77,6 +82,16 @@ function toSetType(value: unknown): string | null {
   return parsed === null ? null : String(parsed);
 }
 
+/** An integer id as a number or numeric string; null otherwise. */
+function toId(value: unknown): number | null {
+  const parsed = parseNumeric(value);
+  return parsed !== null && Number.isInteger(parsed) ? parsed : null;
+}
+
+function toText(value: unknown, placeholder: string): string {
+  return typeof value === 'string' && value.trim() !== '' ? value : placeholder;
+}
+
 function toSet(raw: z.infer<typeof setSchema>, position: number, unit: WeightUnit): WorkoutSet {
   const reps = parseNumeric(raw.reps);
   return {
@@ -87,32 +102,67 @@ function toSet(raw: z.infer<typeof setSchema>, position: number, unit: WeightUni
     duration: parseNumeric(raw.duration),
     distance: parseNumeric(raw.distance),
     setType: toSetType(raw.set_type_id),
-    completed: raw.is_completed ?? false,
+    completed: raw.is_completed === true,
   };
 }
 
 function toExercise(
   raw: z.infer<typeof exerciseSchema>,
+  exerciseId: number,
   position: number,
   unit: WeightUnit,
 ): WorkoutExercise {
+  const rawSets: unknown[] = Array.isArray(raw.sets) ? raw.sets : [];
+  const sets: WorkoutSet[] = [];
+  for (const entry of rawSets) {
+    const parsed = setSchema.safeParse(entry);
+    if (parsed.success) sets.push(toSet(parsed.data, sets.length, unit));
+  }
   return {
     position,
-    exerciseId: raw.exercise_id,
-    name: raw.excercise_name,
-    exerciseType: raw.exercise_type,
+    exerciseId,
+    name: toText(raw.excercise_name, 'Exercise'),
+    exerciseType: toText(raw.exercise_type, 'unknown'),
     restTimeS: parseNumeric(raw.exercise_rest_time),
-    sets: (raw.sets ?? []).map((set, index) => toSet(set, index, unit)),
+    sets,
   };
 }
 
-function toWorkout(raw: z.infer<typeof workoutSchema>, unit: WeightUnit): Workout {
+/**
+ * Parses one Lyfta workout object. Only the id and a valid perform date are required; returns
+ * null when either is missing or unusable. Set weights use the workout's own `weight_unit` when it
+ * has a recognised one, otherwise `unit`. Lyfta's `total_volume` and `body_weight` are never read
+ * (volume is computed from sets); `rawJson` keeps them.
+ */
+export function parseWorkoutRecord(raw: unknown, unit: WeightUnit): ParsedWorkout | null {
+  const result = workoutSchema.safeParse(raw);
+  if (!result.success) return null;
+  const record = result.data;
+
+  const lyftaId = toId(record.id);
+  const performedAt = parseLyftaInstant(record.workout_perform_date);
+  if (lyftaId === null || performedAt === null) return null;
+
+  const setUnit = parseWeightUnit(record.weight_unit) ?? unit;
+  const rawExercises: unknown[] = Array.isArray(record.exercises) ? record.exercises : [];
+  const exercises: WorkoutExercise[] = [];
+  for (const entry of rawExercises) {
+    const parsed = exerciseSchema.safeParse(entry);
+    if (!parsed.success) continue;
+    const exerciseId = toId(parsed.data.exercise_id);
+    if (exerciseId === null) continue;
+    exercises.push(toExercise(parsed.data, exerciseId, exercises.length, setUnit));
+  }
+
   return {
-    lyftaId: raw.id,
-    performedAt: new Date(raw.workout_perform_date).toISOString(),
-    title: raw.title,
-    totalVolumeKg: toKg(raw.total_volume, unit),
-    exercises: (raw.exercises ?? []).map((exercise, index) => toExercise(exercise, index, unit)),
+    workout: {
+      lyftaId,
+      performedAt,
+      title: toText(record.title, 'Workout'),
+      durationS: parseDurationSeconds(record.workout_duration),
+      exercises,
+    },
+    rawJson: JSON.stringify(raw),
   };
 }
 
@@ -129,12 +179,12 @@ export function parseWorkoutPage(json: unknown, unit: WeightUnit): ParsedWorkout
   const workouts: ParsedWorkout[] = [];
   let skipped = 0;
   for (const rawWorkout of envelope.data.workouts) {
-    const result = workoutSchema.safeParse(rawWorkout);
-    if (!result.success) {
+    const parsed = parseWorkoutRecord(rawWorkout, unit);
+    if (parsed === null) {
       skipped += 1;
       continue;
     }
-    workouts.push({ workout: toWorkout(result.data, unit), rawJson: JSON.stringify(rawWorkout) });
+    workouts.push(parsed);
   }
 
   return {
@@ -142,5 +192,6 @@ export function parseWorkoutPage(json: unknown, unit: WeightUnit): ParsedWorkout
     skipped,
     currentPage: envelope.data.current_page,
     totalPages: envelope.data.total_pages,
+    totalRecords: parseNumeric(envelope.data.total_records),
   };
 }

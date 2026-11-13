@@ -23,6 +23,19 @@ test('inserts workouts with exercises and sets', async () => {
   expect(await repo.get(9999)).toBeNull();
 });
 
+test('stores and reads durationS', async () => {
+  const { repo, parsed } = await setup();
+  const withDuration = structuredClone(parsed);
+  withDuration[0].workout.durationS = 7609;
+  await repo.upsertMany(withDuration, SYNCED_AT);
+  expect((await repo.get(1001))?.durationS).toBe(7609);
+  expect((await repo.get(1002))?.durationS).toBeNull();
+
+  withDuration[0].workout.durationS = null;
+  await repo.upsertMany([withDuration[0]], SYNCED_AT);
+  expect((await repo.get(1001))?.durationS).toBeNull();
+});
+
 test('upsert replaces exercises and sets', async () => {
   const { repo, parsed } = await setup();
   await repo.upsertMany(parsed, SYNCED_AT);

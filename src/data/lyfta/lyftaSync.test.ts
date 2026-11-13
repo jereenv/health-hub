@@ -265,7 +265,9 @@ test('keeps stored workouts that now fail validation instead of deleting them', 
   const { deps, state, workouts } = await setup([rawWorkout(1, 1), rawWorkout(2, 2)]);
   await syncLyfta(deps);
 
-  const broken = { id: 1, workout_perform_date: state.workouts[0].workout_perform_date };
+  // Same day (so the fake server still returns it) but an impossible time, so it fails parsing.
+  const sameDay = state.workouts[0].workout_perform_date.slice(0, 10);
+  const broken = { id: 1, workout_perform_date: `${sameDay} 25:99:00` };
   state.workouts = [broken, rawWorkout(2, 2)];
   expect(await syncLyfta(deps)).toMatchObject({
     status: 'ok',

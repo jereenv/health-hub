@@ -28,7 +28,8 @@ test('rolls back a failing migration and keeps the previous version', async () =
 test('deleting a workout cascades to its exercises and sets', async () => {
   const db = await openTestDatabase();
   await db.run(
-    "INSERT INTO workout VALUES (1, '2026-08-20T17:05:00.000Z', 'A', NULL, '{}', '2026-11-12T00:00:00.000Z')",
+    `INSERT INTO workout (lyfta_id, performed_at, title, raw_json, synced_at)
+     VALUES (1, '2026-08-20T17:05:00.000Z', 'A', '{}', '2026-11-12T00:00:00.000Z')`,
   );
   await db.run(
     "INSERT INTO workout_exercise VALUES (10, 1, 0, 2, 'Bench Press', 'weight_reps', 180)",
@@ -40,16 +41,19 @@ test('deleting a workout cascades to its exercises and sets', async () => {
 
 test('v2 drops the body weight column and keeps existing workouts, exercises and sets', async () => {
   const db = await openEmptyTestDatabase();
+  const v2Migrations = MIGRATIONS.slice(0, 2);
   await migrate(db, MIGRATIONS.slice(0, 1));
   await db.run(
-    "INSERT INTO workout VALUES (1, '2026-08-20T17:05:00.000Z', 'A', 500, 82, '{\"id\":1}', '2026-11-12T00:00:00.000Z')",
+    `INSERT INTO workout (lyfta_id, performed_at, title, total_volume_kg, body_weight_kg, raw_json,
+                          synced_at)
+     VALUES (1, '2026-08-20T17:05:00.000Z', 'A', 500, 82, '{"id":1}', '2026-11-12T00:00:00.000Z')`,
   );
   await db.run(
     "INSERT INTO workout_exercise VALUES (10, 1, 0, 2, 'Bench Press', 'weight_reps', 180)",
   );
   await db.run('INSERT INTO workout_set VALUES (100, 10, 0, 80, 5, 2, NULL, NULL, NULL, 1)');
 
-  expect(await migrate(db, MIGRATIONS)).toBe(MIGRATIONS.length);
+  expect(await migrate(db, v2Migrations)).toBe(2);
 
   const columns = await db.all<{ name: string }>('PRAGMA table_info(workout)');
   expect(columns.map((c) => c.name)).toEqual([
@@ -68,6 +72,40 @@ test('v2 drops the body weight column and keeps existing workouts, exercises and
   expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout_set'))?.n).toBe(1);
 });
 
+test('v3 adds workout.duration_s and drops total_volume_kg, keeping existing rows', async () => {
+  const db = await openEmptyTestDatabase();
+  await migrate(db, MIGRATIONS.slice(0, 2));
+  await db.run(
+    `INSERT INTO workout (lyfta_id, performed_at, title, total_volume_kg, raw_json, synced_at)
+     VALUES (1, '2026-08-20T17:05:00.000Z', 'A', 500, '{"id":1,"total_volume":500}',
+             '2026-11-12T00:00:00.000Z')`,
+  );
+  await db.run(
+    "INSERT INTO workout_exercise VALUES (10, 1, 0, 2, 'Bench Press', 'weight_reps', 180)",
+  );
+  await db.run('INSERT INTO workout_set VALUES (100, 10, 0, 80, 5, 2, NULL, NULL, NULL, 1)');
+
+  expect(await migrate(db, MIGRATIONS)).toBe(MIGRATIONS.length);
+  expect(MIGRATIONS.length).toBeGreaterThanOrEqual(3);
+
+  const columns = await db.all<{ name: string }>('PRAGMA table_info(workout)');
+  expect(columns.map((c) => c.name)).toEqual([
+    'lyfta_id',
+    'performed_at',
+    'title',
+    'raw_json',
+    'synced_at',
+    'duration_s',
+  ]);
+  expect(await db.first('SELECT title, duration_s, raw_json FROM workout')).toEqual({
+    title: 'A',
+    duration_s: null,
+    raw_json: '{"id":1,"total_volume":500}',
+  });
+  expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout_exercise'))?.n).toBe(1);
+  expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM workout_set'))?.n).toBe(1);
+});
+
 test('refuses a database newer than the app', async () => {
   const db = await openTestDatabase();
   await db.exec(`PRAGMA user_version = ${MIGRATIONS.length + 1}`);
@@ -78,7 +116,8 @@ test('refuses a database newer than the app', async () => {
 
 async function seedWorkoutWithChildren(db: Awaited<ReturnType<typeof openTestDatabase>>) {
   await db.run(
-    "INSERT INTO workout VALUES (1, '2026-08-20T17:05:00.000Z', 'A', 500, '{}', '2026-11-12T00:00:00.000Z')",
+    `INSERT INTO workout (lyfta_id, performed_at, title, raw_json, synced_at)
+     VALUES (1, '2026-08-20T17:05:00.000Z', 'A', '{}', '2026-11-12T00:00:00.000Z')`,
   );
   await db.run(
     "INSERT INTO workout_exercise VALUES (10, 1, 0, 2, 'Bench Press', 'weight_reps', 180)",
@@ -99,8 +138,9 @@ test('a foreign-keys-off step can rebuild a parent table', async () => {
     sql: `
       CREATE TABLE workout_new (
         lyfta_id INTEGER PRIMARY KEY NOT NULL, performed_at TEXT NOT NULL, title TEXT NOT NULL,
-        total_volume_kg REAL, raw_json TEXT NOT NULL, synced_at TEXT NOT NULL);
-      INSERT INTO workout_new SELECT * FROM workout;
+        raw_json TEXT NOT NULL, synced_at TEXT NOT NULL, duration_s INTEGER);
+      INSERT INTO workout_new (lyfta_id, performed_at, title, raw_json, synced_at, duration_s)
+        SELECT lyfta_id, performed_at, title, raw_json, synced_at, duration_s FROM workout;
       DROP TABLE workout;
       ALTER TABLE workout_new RENAME TO workout;`,
   };

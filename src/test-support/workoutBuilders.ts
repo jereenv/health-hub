@@ -34,7 +34,7 @@ export function makeWorkout(
 ): Workout {
   return {
     title: 'Workout',
-    totalVolumeKg: null,
+    durationS: null,
     exercises: [],
     ...p,
   };
