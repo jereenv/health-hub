@@ -45,14 +45,23 @@ test('accepts numeric ids and string pagination', () => {
   expect(parsed).toMatchObject({ currentPage: 1, totalPages: 2, totalRecords: 150 });
 });
 
-test('keeps the calendar day of a date-only value and of an ISO date-time as written', () => {
+test('places timed dates on the local day and keeps date-only values as written', () => {
   const parsed = parseSchedulePage(
     page([
       { id: 'a', scheduled_date: '2026-01-20' },
-      { id: 'b', scheduled_date: '2026-01-21T23:30:00Z' },
+      { id: 'b', scheduled_date: '2026-01-21T03:00:00Z' },
+      { id: 'c', scheduled_date: '2026-01-20T23:30:00-05:00' },
+      { id: 'd', scheduled_date: '2026-01-20 23:30:00' },
+      { id: 'e', scheduled_date: '2026-01-20T25:00:00Z' },
     ]),
   );
-  expect(parsed.items.map((i) => i.item.date)).toEqual(['2026-01-20', '2026-01-21']);
+  expect(parsed.items.map((i) => i.item.date)).toEqual([
+    '2026-01-20',
+    '2026-01-20',
+    '2026-01-20',
+    '2026-01-20',
+  ]);
+  expect(parsed.skipped).toBe(1);
 });
 
 test('a missing title falls back to Workout and a missing flag to not completed', () => {

@@ -3,7 +3,8 @@ import { z } from 'zod';
 import type { ScheduledWorkout } from '@/domain/workouts/schedule';
 
 import { LyftaError } from './LyftaError';
-import { parseLyftaDate } from './parseLyftaDates';
+import { parseLyftaDate, parseLyftaInstant } from './parseLyftaDates';
+import { localDateKey, type DateKey } from '@/domain/time/localDate';
 import { parseNumeric } from './parseNumeric';
 
 export interface ParsedScheduledWorkout {
@@ -59,14 +60,26 @@ function toPageNumber(value: unknown): number {
   return parsed !== null && Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
 }
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The local calendar day of a schedule date. A bare `YYYY-MM-DD` is that day exactly. A value with a
+ * time is an instant (zoneless values are local wall time), so it is placed on the phone's local day.
+ */
+function toScheduleDay(value: unknown): DateKey | null {
+  if (typeof value !== 'string') return null;
+  if (DATE_ONLY_PATTERN.test(value.trim())) return parseLyftaDate(value);
+  const instant = parseLyftaInstant(value);
+  return instant === null ? null : localDateKey(instant);
+}
+
 function parseItem(raw: unknown): ParsedScheduledWorkout | null {
   const parsed = itemSchema.safeParse(raw);
   if (!parsed.success) return null;
   const fields = parsed.data;
 
   const lyftaId = toIdString(fields.id);
-  // The date is kept as the calendar day Lyfta wrote; no zone conversion can shift it.
-  const date = parseLyftaDate(fields.scheduled_date);
+  const date = toScheduleDay(fields.scheduled_date);
   if (lyftaId === null || date === null) return null;
 
   const title = typeof fields.title === 'string' ? fields.title.trim() : '';
