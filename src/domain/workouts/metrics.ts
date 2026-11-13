@@ -41,3 +41,6 @@ export function estimateOneRepMaxKg(weightKg: number, reps: number): number | nu
   if (reps === 1) return weightKg;
   return weightKg * (1 + reps / 30);
 }
+
+/** The one-line explanation of the estimated 1-rep max, shown wherever it appears. */
+export const EPLEY_NOTE = `Estimated 1-rep max: Epley, weight × (1 + reps ÷ 30), from completed sets of 1–${EPLEY_MAX_REPS} reps.`;
