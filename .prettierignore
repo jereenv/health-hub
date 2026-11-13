@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+coverage/
+assets/
+*.png
+*.jpg
+*.svg
+package-lock.json
+
+# SDD scratch (git-ignored working files)
+.superpowers/
