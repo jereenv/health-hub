@@ -149,10 +149,3 @@ account state or query that returns progress rows before writing a parser for it
 - **Id types differ.** Workout `id` and `exercise_id` are numbers, but set `id`, schedule `id` and
   `template_id` are strings.
 - **Spelling.** `excercise_name` is spelled that way in the live response (confirmed).
-
-## Probe notes
-
-The first probe run printed `rir`, `record_type`, `record_level` and `record_value` with duplicated
-members (for example `null | null | string | string`) because of a bug in `describeShape` when
-merging nested arrays. The bug is fixed and covered by a test; the shapes above show the corrected,
-de-duplicated types.
