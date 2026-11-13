@@ -1,6 +1,11 @@
 import { openExpoSqlDatabase } from '@/data/db/expoSqlDatabase';
 import { migrate } from '@/data/db/migrate';
 import { DATABASE_NAME, MIGRATIONS } from '@/data/db/schema';
+import { createExpoHealthConnectGateway } from '@/data/healthconnect/expoHealthConnectGateway';
+import { syncHealthConnect } from '@/data/healthconnect/healthConnectSync';
+import type { HealthConnectGateway } from '@/data/healthconnect/HealthConnectGateway';
+import type { HealthConnectRepository } from '@/data/healthconnect/HealthConnectRepository';
+import { createSqliteHealthConnectRepository } from '@/data/healthconnect/HealthConnectRepository';
 import { createLyftaClient } from '@/data/lyfta/LyftaClient';
 import { wipeSyncedData } from '@/data/maintenance/wipeSyncedData';
 import type { ProfileRepository } from '@/data/profile/ProfileRepository';
@@ -32,6 +37,9 @@ export interface AppContainer {
   profile: ProfileRepository;
   preferences: PreferencesStore;
   secrets: SecretStore;
+  healthConnect: HealthConnectRepository;
+  /** The only door to Health Connect (permissions, availability, reads). */
+  healthConnectGateway: HealthConnectGateway;
   /** The only way to sync or wipe: it keeps those operations from overlapping. */
   sync: SyncCoordinator;
 }
@@ -48,6 +56,8 @@ async function createAppContainer(): Promise<AppContainer> {
   const profile = createSqliteProfileRepository(db);
   const preferences = await createPreferencesStore(settings);
   const secrets = createExpoSecretStore();
+  const healthConnect = createSqliteHealthConnectRepository(db);
+  const healthConnectGateway = createExpoHealthConnectGateway();
   const client = createLyftaClient({
     fetchFn: fetch,
     getApiKey: () => secrets.get(SECRET_KEYS.lyftaApiKey),
@@ -60,11 +70,29 @@ async function createAppContainer(): Promise<AppContainer> {
     settings,
     secrets,
     preferences,
+    syncHealthConnect: () =>
+      syncHealthConnect({
+        gateway: healthConnectGateway,
+        repository: healthConnect,
+        syncState,
+        now: () => new Date(),
+      }),
     wipeSyncedData: () => wipeSyncedData(db),
     now: () => new Date(),
   });
 
-  return { workouts, schedule, syncState, settings, profile, preferences, secrets, sync };
+  return {
+    workouts,
+    schedule,
+    syncState,
+    settings,
+    profile,
+    preferences,
+    secrets,
+    healthConnect,
+    healthConnectGateway,
+    sync,
+  };
 }
 
 const appContainer = memoizeAsync(createAppContainer);

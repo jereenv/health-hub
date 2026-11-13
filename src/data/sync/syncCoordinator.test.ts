@@ -1,6 +1,8 @@
 import type { LyftaClient } from '@/data/lyfta/LyftaClient';
 import { LyftaError } from '@/data/lyfta/LyftaError';
 import { LB_TO_KG, WORKOUT_PARSER_VERSION } from '@/data/lyfta/parseWorkouts';
+import type { HealthConnectSyncResult } from '@/data/healthconnect/healthConnectSync';
+import { createSqliteHealthConnectRepository } from '@/data/healthconnect/HealthConnectRepository';
 import { wipeSyncedData } from '@/data/maintenance/wipeSyncedData';
 import { createSqliteProfileRepository } from '@/data/profile/ProfileRepository';
 import { createSqliteScheduleRepository } from '@/data/schedule/ScheduleRepository';
@@ -57,7 +59,14 @@ async function setup(options: { withKey?: boolean; unit?: string | null } = {}) 
     gate: null as Deferred | null,
     workoutsError: null as Error | null,
     scheduleError: null as Error | null,
+    /** What the stubbed Health Connect step does; it sees the cursor stored when it starts. */
+    healthConnect: (async () => ({
+      status: 'not_connected',
+      reason: 'unavailable',
+    })) as () => Promise<HealthConnectSyncResult>,
+    healthConnectCursors: [] as (string | null)[],
   };
+  const healthConnect = createSqliteHealthConnectRepository(db);
   const client: LyftaClient = {
     async listWorkouts(call) {
       log.push('listWorkouts');
@@ -87,11 +96,15 @@ async function setup(options: { withKey?: boolean; unit?: string | null } = {}) 
     settings,
     secrets,
     preferences,
+    syncHealthConnect: async () => {
+      state.healthConnectCursors.push((await syncState.get('health_connect')).cursor);
+      return state.healthConnect();
+    },
     wipeSyncedData: () => wipeSyncedData(db),
     now: () => NOW,
   };
   const sync = createSyncCoordinator(deps);
-  return { sync, deps, db, log, workoutPages, state, profile };
+  return { sync, deps, db, log, workoutPages, state, profile, healthConnect };
 }
 
 test('runs re-parse, unit check, workouts and schedule in that order', async () => {
@@ -108,6 +121,7 @@ test('makes no request without a key', async () => {
     workouts: { status: 'not_configured' },
     schedule: { status: 'skipped' },
     reparsed: null,
+    healthConnect: { status: 'not_connected', reason: 'unavailable' },
   });
   expect(log).toEqual([]);
 });
@@ -483,5 +497,119 @@ describe('never rejects', () => {
     await expect(sync.wipe()).resolves.toBeUndefined();
     expect(listener).toHaveBeenCalledTimes(1);
     expect(await deps.workouts.count()).toBe(2);
+  });
+});
+
+describe('Health Connect', () => {
+  const OK: HealthConnectSyncResult = {
+    status: 'ok',
+    mode: 'full',
+    from: '2026-11-01',
+    activityDays: 1,
+    sleepSessions: 0,
+    heartRateDays: 0,
+    weighIns: 0,
+    watchBodyFat: 0,
+    ignored: 0,
+  };
+
+  test('a run without a Lyfta key still syncs Health Connect', async () => {
+    const { sync, state, log } = await setup({ withKey: false });
+    state.healthConnect = async () => OK;
+    const result = await sync.run();
+    expect(result.workouts).toEqual({ status: 'not_configured' });
+    expect(result.schedule).toEqual({ status: 'skipped' });
+    expect(result.healthConnect).toEqual(OK);
+    expect(log).toEqual([]);
+  });
+
+  test('a Health Connect failure does not change the Lyfta result', async () => {
+    const { sync, state } = await setup();
+    state.healthConnect = () => Promise.reject(new Error('hc down'));
+    const result = await sync.run();
+    expect(result.workouts).toMatchObject({ status: 'ok' });
+    expect(result.schedule).toMatchObject({ status: 'ok' });
+    expect(result.healthConnect).toEqual({ status: 'error', message: 'hc down' });
+  });
+
+  test('a Lyfta failure does not stop Health Connect', async () => {
+    const { sync, state } = await setup();
+    state.workoutsError = new LyftaError('network', 'offline');
+    state.healthConnect = async () => OK;
+    const result = await sync.run();
+    expect(result.workouts).toEqual({ status: 'error', message: 'offline' });
+    expect(result.healthConnect).toEqual(OK);
+  });
+
+  test('a thrown Lyfta step does not stop Health Connect', async () => {
+    const { deps, state } = await setup();
+    state.healthConnect = async () => OK;
+    const workouts = { ...deps.workouts, listRaw: () => Promise.reject(new Error('db down')) };
+    const secrets: SecretStore = {
+      get: () => Promise.reject(new Error('keychain')),
+      set: async () => {},
+      delete: async () => {},
+    };
+    const sync = createSyncCoordinator({ ...deps, workouts, secrets });
+    expect((await sync.run()).healthConnect).toEqual(OK);
+  });
+
+  test('resyncHealthConnect forgets the cursor and queues behind a running sync', async () => {
+    const { sync, deps, state, workoutPages } = await setup();
+    await deps.syncState.recordSuccess('health_connect', NOW.toISOString(), '{"v":1}');
+    state.gate = deferred();
+    const run = sync.run();
+    await settle();
+    expect(workoutPages).toHaveLength(1);
+    const resync = sync.resyncHealthConnect();
+    await settle();
+    // The reset is queued behind the gated run, so the cursor is still there.
+    expect((await deps.syncState.get('health_connect')).cursor).toBe('{"v":1}');
+    state.gate.release();
+    await Promise.all([run, resync]);
+    expect(state.healthConnectCursors).toEqual(['{"v":1}', null]);
+    // Only the Health Connect position was forgotten: Lyfta continues from its saved position.
+    expect(workoutPages[1]).toHaveProperty('from');
+  });
+
+  test('wipe waits for an in-flight run and also leaves no Health Connect rows', async () => {
+    const { sync, state, healthConnect } = await setup();
+    state.healthConnect = async () => {
+      await healthConnect.applyImport({
+        from: '2026-11-01',
+        activity: [
+          { date: '2026-11-01', steps: 5, distanceM: null, activeKcal: null, totalKcal: null },
+        ],
+        sleep: [],
+        heartRate: [{ date: '2026-11-01', minBpm: 50, avgBpm: 60, maxBpm: 70 }],
+        watchBodyFat: [],
+        weighIns: [
+          {
+            measuredAt: NOW.toISOString(),
+            weightKg: 80,
+            sourceRecordId: 'w',
+            rawPayload: '{}',
+            bodyFatPct: 18,
+          },
+        ],
+        syncedAt: NOW.toISOString(),
+      });
+      return OK;
+    };
+    state.gate = deferred();
+    const run = sync.run();
+    await settle();
+    const wipe = sync.wipe();
+    await settle();
+    expect((await healthConnect.counts()).activityDays).toBe(0);
+    state.gate.release();
+    await Promise.all([run, wipe]);
+    expect(await healthConnect.counts()).toEqual({
+      activityDays: 0,
+      sleepSessions: 0,
+      heartRateDays: 0,
+      watchBodyFat: 0,
+      weighIns: 0,
+    });
   });
 });

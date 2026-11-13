@@ -1,3 +1,4 @@
+import type { HealthConnectSyncResult } from '@/data/healthconnect/healthConnectSync';
 import type { LyftaClient } from '@/data/lyfta/LyftaClient';
 import { LyftaError } from '@/data/lyfta/LyftaError';
 import type { LyftaSyncResult } from '@/data/lyfta/lyftaSync';
@@ -20,7 +21,12 @@ export interface SyncRunResult {
   schedule: ScheduleSyncResult | { status: 'skipped' };
   /** Stored workouts re-parsed during this run, summed over every re-parse; null if none did work. */
   reparsed: { reparsed: number; skipped: number } | null;
+  /** Health Connect import; it runs whether or not Lyfta is configured. */
+  healthConnect: HealthConnectSyncResult | { status: 'skipped' };
 }
+
+/** The Lyfta half of a run; Health Connect is added after it. */
+type LyftaRunResult = Omit<SyncRunResult, 'healthConnect'>;
 
 /** Shaped for React's `useSyncExternalStore`. */
 export interface SyncSnapshot {
@@ -38,6 +44,7 @@ export interface SyncCoordinatorDeps {
   settings: SettingsRepository;
   secrets: SecretStore;
   preferences: Pick<PreferencesStore, 'reload'>;
+  syncHealthConnect: () => Promise<HealthConnectSyncResult>;
   wipeSyncedData: () => Promise<void>;
   /** Injected so tests control timestamps. */
   now: () => Date;
@@ -48,6 +55,8 @@ export interface SyncCoordinator {
   run(): Promise<SyncRunResult>;
   /** Forgets both sync positions, then runs: a full re-backfill that retries skipped workouts. */
   resync(): Promise<SyncRunResult>;
+  /** Forgets the Health Connect position, then runs: a full re-import of Health Connect data. */
+  resyncHealthConnect(): Promise<SyncRunResult>;
   /** Deletes all synced data (not the key, settings or profile). */
   wipe(): Promise<void>;
   subscribe(listener: () => void): () => void;
@@ -62,7 +71,7 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Owns everything that writes synced data. Re-parsing, workout sync, schedule sync, re-sync and
+ * Owns everything that writes synced data. Re-parsing, workout, schedule and Health Connect sync, re-sync and
  * wipe all execute inside one slot, one at a time: the re-parse reads then writes in separate
  * transactions, so running it beside a sync could lose an update. Nothing else in the app may call
  * those functions directly. None of the public methods rejects.
@@ -109,12 +118,12 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
     }
   }
 
-  async function execute(): Promise<SyncRunResult> {
+  async function executeLyfta(): Promise<LyftaRunResult> {
     let reparsed: SyncRunResult['reparsed'] = null;
     const finish = (
       workoutsResult: LyftaSyncResult,
       scheduleResult: SyncRunResult['schedule'],
-    ): SyncRunResult => ({ workouts: workoutsResult, schedule: scheduleResult, reparsed });
+    ): LyftaRunResult => ({ workouts: workoutsResult, schedule: scheduleResult, reparsed });
 
     /** Runs a re-parse and adds its counts, when it did any work, to `reparsed`. */
     const reparseAndRecord = async (): Promise<void> => {
@@ -201,6 +210,30 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
     return finish(workoutsResult, scheduleResult);
   }
 
+  /**
+   * Lyfta, then Health Connect. The two are independent: a failure or missing key on one never
+   * stops the other.
+   */
+  async function execute(): Promise<SyncRunResult> {
+    let lyfta: LyftaRunResult;
+    try {
+      lyfta = await executeLyfta();
+    } catch (error) {
+      lyfta = {
+        workouts: { status: 'error', message: messageOf(error) },
+        schedule: SKIPPED,
+        reparsed: null,
+      };
+    }
+    let healthConnect: SyncRunResult['healthConnect'];
+    try {
+      healthConnect = await deps.syncHealthConnect();
+    } catch (error) {
+      healthConnect = { status: 'error', message: messageOf(error) };
+    }
+    return { ...lyfta, healthConnect };
+  }
+
   /** The slot body of a run or re-sync: flips `running`, executes, publishes the result. */
   async function runInSlot(beforeRun?: () => Promise<void>): Promise<SyncRunResult> {
     update({ running: true });
@@ -213,6 +246,7 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
         workouts: { status: 'error', message: messageOf(error) },
         schedule: SKIPPED,
         reparsed: null,
+        healthConnect: SKIPPED,
       };
     }
     update({ running: false, lastResult: result, dataVersion: snapshot.dataVersion + 1 });
@@ -237,6 +271,10 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
         await syncState.reset('lyfta');
         await syncState.reset('lyfta_schedule');
       });
+    },
+
+    resyncHealthConnect() {
+      return queueRun(() => syncState.reset('health_connect'));
     },
 
     wipe() {

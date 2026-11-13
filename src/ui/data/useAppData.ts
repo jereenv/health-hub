@@ -1,4 +1,8 @@
 import { useContainer } from '@/bootstrap/ContainerContext';
+import type {
+  HealthConnectAccess,
+  HealthConnectAvailability,
+} from '@/data/healthconnect/HealthConnectGateway';
 import { SECRET_KEYS } from '@/data/secrets/SecretStore';
 import type { SyncState } from '@/data/sync/SyncStateRepository';
 import type { Workout } from '@/domain/workouts/types';
@@ -32,4 +36,25 @@ export function useWorkoutData(): AsyncState<Workout[]> {
   const { workouts } = useContainer();
   const { dataVersion } = useSyncSnapshot();
   return useAsyncData(() => workouts.listAll(), [workouts, dataVersion]);
+}
+
+export interface HealthConnectConnection {
+  availability: HealthConnectAvailability;
+  /** Null unless Health Connect is available. */
+  access: HealthConnectAccess | null;
+}
+
+/** Health Connect availability and permissions plus its sync state, re-read after every sync. */
+export function useHealthConnectStatus(): AsyncState<{
+  connection: HealthConnectConnection;
+  state: SyncState;
+}> {
+  const { healthConnectGateway, syncState } = useContainer();
+  const { dataVersion } = useSyncSnapshot();
+  return useAsyncData(async () => {
+    const availability = await healthConnectGateway.availability();
+    const access = availability === 'available' ? await healthConnectGateway.getAccess() : null;
+    const state = await syncState.get('health_connect');
+    return { connection: { availability, access }, state };
+  }, [healthConnectGateway, syncState, dataVersion]);
 }
