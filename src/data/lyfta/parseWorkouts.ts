@@ -2,11 +2,13 @@ import { z } from 'zod';
 
 import type { Workout, WorkoutExercise, WorkoutSet, WeightUnit } from '@/domain/workouts/types';
 
+import { LB_TO_KG } from '@/domain/format/units';
+
 import { LyftaError } from './LyftaError';
 import { parseNumeric } from './parseNumeric';
 
-/** Exact international pound, used to store every weight in kilograms. */
-export const LB_TO_KG = 0.45359237;
+/** Re-exported: the constant lives in the domain layer, which must not import from data. */
+export { LB_TO_KG };
 
 export interface ParsedWorkout {
   workout: Workout;
