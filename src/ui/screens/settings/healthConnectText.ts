@@ -18,6 +18,9 @@ export interface HealthConnectLine {
 
 export type HealthConnectCounts = Awaited<ReturnType<HealthConnectRepository['counts']>>;
 
+/** Shown where the status line would be when Health Connect could not be read. */
+export const HEALTH_CONNECT_CHECK_FAILED = "Couldn't check Health Connect";
+
 const HISTORY_HINT = "Allow 'Access past data' to import everything.";
 
 function errorAge(state: SyncState, now: Date): string {

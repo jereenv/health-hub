@@ -46,7 +46,10 @@ export function buildBucketedSeries(
   const included = values.filter(
     (v) => v.date >= from && v.date <= today && (range === 'day' || countToday || v.date < today),
   );
-  return fillEmptyBuckets(bucketSeries(included, range, 'mean'), range, from, today);
+  const points = fillEmptyBuckets(bucketSeries(included, range, 'mean'), range, from, today);
+  // The bucket holding today may have no completed day yet; that is "no data", not a zero bar.
+  const last = points[points.length - 1];
+  return range !== 'day' && last !== undefined && last.count === 0 ? points.slice(0, -1) : points;
 }
 
 export function buildActivitySeries(

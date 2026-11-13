@@ -9,7 +9,8 @@ import { Button } from '@/ui/components/Button';
 import type { HealthConnectConnection } from '@/ui/data/useAppData';
 import { SPACE } from '@/ui/theme/tokens';
 
-import { describeHealthConnectStatus } from './healthConnectText';
+import { describeHealthConnectStatus, HEALTH_CONNECT_CHECK_FAILED } from './healthConnectText';
+import { requestAccessAndImport } from './requestAccess';
 
 const RETRY_HINT = "Allow every data type, including 'Access past data'";
 
@@ -22,8 +23,9 @@ export function HealthConnectSheet({
   onPrivacy,
   onClose,
 }: {
-  connection: HealthConnectConnection;
-  state: SyncState;
+  /** Null when Health Connect could not be read; the sheet still lets the owner retry and allow access. */
+  connection: HealthConnectConnection | null;
+  state: SyncState | null;
   running: boolean;
   /** Called after any permission request so the caller re-reads the connection. */
   onChanged: () => void;
@@ -35,18 +37,20 @@ export function HealthConnectSheet({
   const [incomplete, setIncomplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const status = describeHealthConnectStatus({ connection, state, running, now: new Date() });
-  const { access } = connection;
+  const status =
+    connection === null || state === null
+      ? { text: HEALTH_CONNECT_CHECK_FAILED, tone: 'warning' as const }
+      : describeHealthConnectStatus({ connection, state, running, now: new Date() });
+  const access = connection?.access ?? null;
   const complete = access !== null && access.readAll && access.history;
 
   async function requestAccess(): Promise<void> {
     setRequesting(true);
     setError(null);
     try {
-      const result = await healthConnectGateway.requestAccess();
+      const result = await requestAccessAndImport(healthConnectGateway, sync);
       setIncomplete(!result.readAll || !result.history);
       onChanged();
-      if (result.readAll) void sync.run();
     } catch {
       setError("Couldn't ask Health Connect for access");
     } finally {
@@ -75,13 +79,16 @@ export function HealthConnectSheet({
             {error}
           </AppText>
         )}
-        {complete || connection.availability !== 'available' ? null : (
+        {complete || (connection !== null && connection.availability !== 'available') ? null : (
           <Button
             label="Allow access"
             variant="primary"
             disabled={requesting}
             onPress={() => void requestAccess()}
           />
+        )}
+        {connection !== null ? null : (
+          <Button label="Try again" variant="secondary" onPress={onChanged} />
         )}
         <Button
           label="Open Health Connect settings"

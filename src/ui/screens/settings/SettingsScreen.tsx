@@ -25,7 +25,11 @@ import { SPACE } from '@/ui/theme/tokens';
 import type { WeightUnit } from '@/domain/workouts/types';
 
 import { AboutSheet } from './AboutSheet';
-import { describeHealthConnectDetails, describeHealthConnectStatus } from './healthConnectText';
+import {
+  describeHealthConnectDetails,
+  describeHealthConnectStatus,
+  HEALTH_CONNECT_CHECK_FAILED,
+} from './healthConnectText';
 import { HealthConnectSheet } from './HealthConnectSheet';
 import { LyftaKeySheet } from './LyftaKeySheet';
 import { ProfileSheet } from './ProfileSheet';
@@ -111,6 +115,8 @@ export function SettingsScreen(): React.JSX.Element {
     healthConnectStatus.status === 'ready'
       ? { ...healthConnectStatus.data, running: snapshot.running, now }
       : null;
+  const healthConnectFailed = healthConnectStatus.status === 'error';
+  const retryHealthConnect = (): void => setHealthConnectVersion((v) => v + 1);
   const healthConnectLine =
     healthConnectInput === null ? null : describeHealthConnectStatus(healthConnectInput);
   const healthConnectCount = (which: 'samsung' | 'movinglife'): string | undefined =>
@@ -124,6 +130,19 @@ export function SettingsScreen(): React.JSX.Element {
 
   function dataRow(which: DataRow, title: string, divider: boolean): React.JSX.Element {
     const isHealthConnect = which === 'samsung' || which === 'movinglife';
+    if (isHealthConnect && healthConnectFailed) {
+      return (
+        <ActionRow
+          title={title}
+          subtitle={HEALTH_CONNECT_CHECK_FAILED}
+          subtitleTone="warning"
+          value={healthConnectCount(which)}
+          divider={divider}
+          accessibilityLabel={`${title}, ${HEALTH_CONNECT_CHECK_FAILED}. Try again`}
+          onPress={retryHealthConnect}
+        />
+      );
+    }
     if (isHealthConnect && healthConnectLine === null) {
       return (
         <View style={{ padding: SPACE.card, borderBottomWidth: 1, borderBottomColor: colors.line }}>
@@ -189,7 +208,16 @@ export function SettingsScreen(): React.JSX.Element {
             onPress={() => setSheet('key')}
           />
           <ActionRow title="Senssun account" subtitle={COMING_LATER} disabled divider />
-          {healthConnectLine === null ? (
+          {healthConnectFailed ? (
+            <ActionRow
+              title="Health Connect"
+              subtitle={HEALTH_CONNECT_CHECK_FAILED}
+              subtitleTone="warning"
+              trailing="chevron"
+              divider
+              onPress={() => setSheet('healthConnect')}
+            />
+          ) : healthConnectLine === null ? (
             <View
               style={{ padding: SPACE.card, borderBottomWidth: 1, borderBottomColor: colors.line }}
             >
@@ -321,10 +349,12 @@ export function SettingsScreen(): React.JSX.Element {
           onClose={closeSheet}
         />
       ) : null}
-      {sheet === 'healthConnect' && healthConnectStatus.status === 'ready' ? (
+      {sheet === 'healthConnect' && healthConnectStatus.status !== 'loading' ? (
         <HealthConnectSheet
-          connection={healthConnectStatus.data.connection}
-          state={healthConnectStatus.data.state}
+          connection={
+            healthConnectStatus.status === 'ready' ? healthConnectStatus.data.connection : null
+          }
+          state={healthConnectStatus.status === 'ready' ? healthConnectStatus.data.state : null}
           running={snapshot.running}
           onChanged={() => setHealthConnectVersion((v) => v + 1)}
           onPrivacy={() => {

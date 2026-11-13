@@ -16,7 +16,10 @@ import { useActivityData } from '@/ui/data/useActivityData';
 import { useHealthConnectStatus } from '@/ui/data/useAppData';
 import { usePreferences, useSyncSnapshot } from '@/ui/data/useSyncSnapshot';
 import { useTabBarInset } from '@/ui/navigation/TabBar';
-import { describeHealthConnectStatus } from '@/ui/screens/settings/healthConnectText';
+import {
+  describeHealthConnectStatus,
+  HEALTH_CONNECT_CHECK_FAILED,
+} from '@/ui/screens/settings/healthConnectText';
 import { useTheme } from '@/ui/theme/ThemeProvider';
 import { SPACE } from '@/ui/theme/tokens';
 
@@ -41,7 +44,8 @@ export function ActivityScreen(): React.JSX.Element {
   const { sync } = useContainer();
   const snapshot = useSyncSnapshot();
   const { displayWeightUnit: unit } = usePreferences();
-  const status = useHealthConnectStatus();
+  const [statusVersion, setStatusVersion] = useState(0);
+  const status = useHealthConnectStatus(statusVersion);
   const data = useActivityData();
   const [range, setRange] = useState<RangeKind>('week');
   const today = localDateKey(new Date());
@@ -100,6 +104,16 @@ export function ActivityScreen(): React.JSX.Element {
         title="Couldn't load your activity"
         body="Something went wrong reading data on this phone."
         action={{ label: 'Try again', onPress: () => void sync.run() }}
+      />,
+    );
+  }
+  if (status.status === 'error') {
+    return body(
+      <EmptyState
+        icon="info"
+        title={HEALTH_CONNECT_CHECK_FAILED}
+        body="Health Connect didn't answer. Your imported data is still on this phone."
+        action={{ label: 'Try again', onPress: () => setStatusVersion((v) => v + 1) }}
       />,
     );
   }

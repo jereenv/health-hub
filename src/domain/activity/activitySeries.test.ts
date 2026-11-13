@@ -54,9 +54,23 @@ test('a partial current week is not lowered by today', () => {
   expect(withToday.today).toBe(100);
 });
 
-test('a week with only today in it is a zero bucket, not a drop caused by today', () => {
-  const series = buildActivitySeries([day('2026-11-09', 100)], 'steps', 'week', '2026-11-09');
-  expect(series.points[11]).toEqual({ start: '2026-11-09', value: 0, count: 0 });
+test('a week or month bucket with no completed days is absent, never zero', () => {
+  // Monday: the current week holds only today. The 1st: the current month holds only today.
+  for (const [range, today, last] of [
+    ['week', '2026-11-09', '2026-11-02'],
+    ['month', '2026-11-01', '2026-10-01'],
+  ] as const) {
+    const series = buildActivitySeries(
+      [day(today, 100), day('2026-10-05', 700)],
+      'steps',
+      range,
+      today,
+    );
+    expect(series.points[series.points.length - 1]!.start).toBe(last);
+    expect(series.points.some((p) => p.start === today)).toBe(false);
+    expect(series.today).toBe(100);
+    expect(series.averagePerDay).toBe(700);
+  }
 });
 
 test('averagePerDay and bestDay ignore today and null values', () => {
