@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,20 +16,23 @@ import { SectionCard } from '@/ui/components/SectionCard';
 import { SegmentedControl } from '@/ui/components/SegmentedControl';
 import { Skeleton } from '@/ui/components/Skeleton';
 import { useAsyncData } from '@/ui/data/useAsyncData';
-import { useLyftaStatus } from '@/ui/data/useAppData';
+import { useHealthConnectStatus, useLyftaStatus } from '@/ui/data/useAppData';
 import { usePreferences, useSyncSnapshot } from '@/ui/data/useSyncSnapshot';
 import { describeSyncDetails, describeSyncStatus } from '@/ui/sync/syncStatusText';
 import type { SyncStatusInput } from '@/ui/sync/syncStatusText';
+import { useTheme } from '@/ui/theme/ThemeProvider';
 import { SPACE } from '@/ui/theme/tokens';
 import type { WeightUnit } from '@/domain/workouts/types';
 
 import { AboutSheet } from './AboutSheet';
+import { describeHealthConnectDetails, describeHealthConnectStatus } from './healthConnectText';
+import { HealthConnectSheet } from './HealthConnectSheet';
 import { LyftaKeySheet } from './LyftaKeySheet';
 import { ProfileSheet } from './ProfileSheet';
 import { WipeSheet } from './WipeSheet';
 
-type SheetName = 'key' | 'profile' | 'wipe' | 'about';
-type DataRow = 'workouts' | 'schedule';
+type SheetName = 'key' | 'profile' | 'wipe' | 'about' | 'healthConnect';
+type DataRow = 'workouts' | 'schedule' | 'samsung' | 'movinglife';
 
 const UNIT_OPTIONS = [
   { value: 'kg', label: 'kg' },
@@ -47,10 +51,20 @@ function Caption({ children }: { children: string }): React.JSX.Element {
 
 export function SettingsScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { sync, preferences, profile: profiles, workouts, schedule } = useContainer();
+  const router = useRouter();
+  const {
+    sync,
+    preferences,
+    profile: profiles,
+    workouts,
+    schedule,
+    healthConnect,
+  } = useContainer();
   const snapshot = useSyncSnapshot();
   const prefs = usePreferences();
+  const [healthConnectVersion, setHealthConnectVersion] = useState(0);
   const status = useLyftaStatus();
+  const healthConnectStatus = useHealthConnectStatus(healthConnectVersion);
   const [sheet, setSheet] = useState<SheetName | null>(null);
   const [expanded, setExpanded] = useState<DataRow | null>(null);
   const [profileVersion, setProfileVersion] = useState(0);
@@ -59,7 +73,12 @@ export function SettingsScreen(): React.JSX.Element {
     async () => ({ workouts: await workouts.count(), schedule: await schedule.count() }),
     [workouts, schedule, snapshot.dataVersion],
   );
+  const healthConnectCounts = useAsyncData(
+    () => healthConnect.counts(),
+    [healthConnect, snapshot.dataVersion],
+  );
 
+  const { colors } = useTheme();
   const now = new Date();
   const closeSheet = (): void => setSheet(null);
   const profile: Profile | null = profileState.status === 'ready' ? profileState.data : null;
@@ -78,18 +97,49 @@ export function SettingsScreen(): React.JSX.Element {
   }
   const { hasKey, workouts: workoutState, schedule: scheduleState } = status.data;
   const keyRejected = hasKey && workoutState.lastError === 'invalid_key';
-  const syncInput = (which: DataRow): SyncStatusInput => ({
+  const syncInput = (which: 'workouts' | 'schedule'): SyncStatusInput => ({
     state: which === 'workouts' ? workoutState : scheduleState,
     running: snapshot.running,
     hasKey,
     now,
     noun: which === 'workouts' ? 'workout' : 'scheduled workout',
   });
-  const countText = (which: DataRow): string | undefined =>
+  const countText = (which: 'workouts' | 'schedule'): string | undefined =>
     counts.status === 'ready' ? String(counts.data[which]) : undefined;
 
+  const healthConnectInput =
+    healthConnectStatus.status === 'ready'
+      ? { ...healthConnectStatus.data, running: snapshot.running, now }
+      : null;
+  const healthConnectLine =
+    healthConnectInput === null ? null : describeHealthConnectStatus(healthConnectInput);
+  const healthConnectCount = (which: 'samsung' | 'movinglife'): string | undefined =>
+    healthConnectCounts.status !== 'ready'
+      ? undefined
+      : String(
+          which === 'samsung'
+            ? healthConnectCounts.data.activityDays
+            : healthConnectCounts.data.weighIns,
+        );
+
   function dataRow(which: DataRow, title: string, divider: boolean): React.JSX.Element {
-    const line = describeSyncStatus(syncInput(which));
+    const isHealthConnect = which === 'samsung' || which === 'movinglife';
+    if (isHealthConnect && healthConnectLine === null) {
+      return (
+        <View style={{ padding: SPACE.card, borderBottomWidth: 1, borderBottomColor: colors.line }}>
+          <Skeleton width="100%" height={44} />
+        </View>
+      );
+    }
+    const line = isHealthConnect ? healthConnectLine! : describeSyncStatus(syncInput(which));
+    const details = !isHealthConnect
+      ? describeSyncDetails(syncInput(which))
+      : healthConnectInput === null || healthConnectCounts.status !== 'ready'
+        ? []
+        : describeHealthConnectDetails({
+            ...healthConnectInput,
+            counts: healthConnectCounts.data,
+          });
     const open = expanded === which;
     return (
       <View>
@@ -97,13 +147,13 @@ export function SettingsScreen(): React.JSX.Element {
           title={title}
           subtitle={line.text}
           subtitleTone={line.tone}
-          value={countText(which)}
+          value={isHealthConnect ? healthConnectCount(which) : countText(which)}
           divider={divider || open}
           onPress={() => setExpanded(open ? null : which)}
         />
         {!open ? null : (
           <View style={{ padding: SPACE.card, gap: 4 }}>
-            {describeSyncDetails(syncInput(which)).map((detail) => (
+            {details.map((detail) => (
               <AppText
                 key={detail.text}
                 variant="caption"
@@ -139,7 +189,22 @@ export function SettingsScreen(): React.JSX.Element {
             onPress={() => setSheet('key')}
           />
           <ActionRow title="Senssun account" subtitle={COMING_LATER} disabled divider />
-          <ActionRow title="Health Connect" subtitle={COMING_LATER} disabled divider />
+          {healthConnectLine === null ? (
+            <View
+              style={{ padding: SPACE.card, borderBottomWidth: 1, borderBottomColor: colors.line }}
+            >
+              <Skeleton width="100%" height={44} />
+            </View>
+          ) : (
+            <ActionRow
+              title="Health Connect"
+              subtitle={healthConnectLine.text}
+              subtitleTone={healthConnectLine.tone}
+              trailing="chevron"
+              divider
+              onPress={() => setSheet('healthConnect')}
+            />
+          )}
           <ActionRow title="Scale pairing" subtitle={COMING_LATER} disabled />
         </SectionCard>
 
@@ -206,6 +271,8 @@ export function SettingsScreen(): React.JSX.Element {
         <SectionCard label="Data">
           {dataRow('workouts', 'Lyfta workouts', true)}
           {dataRow('schedule', 'Lyfta schedule', true)}
+          {dataRow('samsung', 'Samsung Health', true)}
+          {dataRow('movinglife', 'MovingLife weigh-ins', true)}
           <ActionRow
             title="Re-sync from Lyfta"
             subtitle="Downloads all workouts from Lyfta again"
@@ -213,11 +280,24 @@ export function SettingsScreen(): React.JSX.Element {
             divider
             onPress={() => void sync.resync()}
           />
+          <ActionRow
+            title="Re-import from Health Connect"
+            subtitle="Reads all Health Connect data again"
+            disabled={snapshot.running}
+            divider
+            onPress={() => void sync.resyncHealthConnect()}
+          />
           <ActionRow title="Wipe local data" destructive onPress={() => setSheet('wipe')} />
         </SectionCard>
 
         <View style={{ gap: SPACE.gap }}>
           <SectionCard label="About">
+            <ActionRow
+              title="Privacy"
+              trailing="chevron"
+              divider
+              onPress={() => router.push('/privacy')}
+            />
             <ActionRow
               title="Formula sources"
               trailing="chevron"
@@ -238,6 +318,19 @@ export function SettingsScreen(): React.JSX.Element {
           profile={profile}
           unit={unit}
           onSaved={() => setProfileVersion((v) => v + 1)}
+          onClose={closeSheet}
+        />
+      ) : null}
+      {sheet === 'healthConnect' && healthConnectStatus.status === 'ready' ? (
+        <HealthConnectSheet
+          connection={healthConnectStatus.data.connection}
+          state={healthConnectStatus.data.state}
+          running={snapshot.running}
+          onChanged={() => setHealthConnectVersion((v) => v + 1)}
+          onPrivacy={() => {
+            closeSheet();
+            router.push('/privacy');
+          }}
           onClose={closeSheet}
         />
       ) : null}

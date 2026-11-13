@@ -27,8 +27,8 @@ export function WipeSheet({ onClose }: { onClose: () => void }): React.JSX.Eleme
     <BottomSheet open onClose={onClose} title="Wipe local data?">
       <View style={{ gap: SPACE.stack }}>
         <AppText variant="body" color="muted">
-          Deletes all workouts, schedule and sync history from this phone. Your Lyfta key, profile
-          and settings stay. Re-sync brings the data back.
+          Deletes all workouts, schedule, Health Connect data and sync history from this phone. Your
+          Lyfta key, profile and settings stay. Re-sync brings the data back.
         </AppText>
         {error === null ? null : (
           <AppText variant="caption" color="statusHigh">

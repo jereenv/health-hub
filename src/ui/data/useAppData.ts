@@ -44,8 +44,11 @@ export interface HealthConnectConnection {
   access: HealthConnectAccess | null;
 }
 
-/** Health Connect availability and permissions plus its sync state, re-read after every sync. */
-export function useHealthConnectStatus(): AsyncState<{
+/**
+ * Health Connect availability and permissions plus its sync state, re-read after every sync and
+ * whenever `version` changes (a permission request changes nothing the sync snapshot sees).
+ */
+export function useHealthConnectStatus(version = 0): AsyncState<{
   connection: HealthConnectConnection;
   state: SyncState;
 }> {
@@ -56,5 +59,5 @@ export function useHealthConnectStatus(): AsyncState<{
     const access = availability === 'available' ? await healthConnectGateway.getAccess() : null;
     const state = await syncState.get('health_connect');
     return { connection: { availability, access }, state };
-  }, [healthConnectGateway, syncState, dataVersion]);
+  }, [healthConnectGateway, syncState, dataVersion, version]);
 }
