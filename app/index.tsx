@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useContainer } from '@/bootstrap/ContainerContext';
-import type { LyftaSyncResult } from '@/data/lyfta/lyftaSync';
 import { SECRET_KEYS } from '@/data/secrets/SecretStore';
 import type { SyncState } from '@/data/sync/SyncStateRepository';
 import { LB_TO_KG } from '@/data/lyfta/parseWorkouts';
@@ -31,14 +30,15 @@ function formatKgAndLb(kg: number | null): string {
 
 /** Temporary developer screen that exercises the Lyfta pipeline; Plan 2 replaces it. */
 export default function Index() {
-  const { workouts, syncState, settings, secrets, lyftaSync } = useContainer();
+  const { workouts, syncState, settings, secrets, sync } = useContainer();
+  const { running, lastResult, dataVersion } = useSyncExternalStore(
+    sync.subscribe,
+    sync.getSnapshot,
+  );
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [keyInput, setKeyInput] = useState('');
-  const [syncing, setSyncing] = useState(false);
-  const [result, setResult] = useState<LyftaSyncResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const syncInFlight = useRef(false);
 
   const load = useCallback(async (): Promise<Snapshot> => {
     const [key, unitSetting, count, state, recent] = await Promise.all([
@@ -66,6 +66,7 @@ export default function Index() {
     }
   }, [load]);
 
+  // `dataVersion` changes after every sync, re-sync and wipe, so the stored data is read again.
   useEffect(() => {
     let cancelled = false;
     load().then(
@@ -80,7 +81,7 @@ export default function Index() {
     return () => {
       cancelled = true;
     };
-  }, [load]);
+  }, [load, dataVersion]);
 
   /** Runs a button handler, showing only the error message on screen if it fails. */
   const runAction = async (action: () => Promise<void>) => {
@@ -108,42 +109,6 @@ export default function Index() {
       await refresh();
     });
 
-  const sync = async () => {
-    // A ref, not state: state only updates after a re-render, so two quick taps could both pass.
-    if (syncInFlight.current) return;
-    syncInFlight.current = true;
-    setSyncing(true);
-    await runAction(async () => {
-      try {
-        setResult(await lyftaSync.run());
-      } finally {
-        syncInFlight.current = false;
-        setSyncing(false);
-      }
-      await refresh();
-    });
-  };
-
-  /**
-   * TEMPORARY (Plan 2 replaces this screen): forgets the sync progress so the next run is a full
-   * backfill that re-upserts every workout. The saved key and unit setting are left alone.
-   */
-  const fullResync = async () => {
-    if (syncInFlight.current) return;
-    syncInFlight.current = true;
-    setSyncing(true);
-    await runAction(async () => {
-      try {
-        await syncState.reset('lyfta');
-        setResult(await lyftaSync.run());
-      } finally {
-        syncInFlight.current = false;
-        setSyncing(false);
-      }
-      await refresh();
-    });
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -169,12 +134,20 @@ export default function Index() {
         <Text style={styles.section}>Lyfta unit: {snapshot?.unit ?? 'not detected yet'}</Text>
 
         <Text style={styles.section}>Sync</Text>
-        <Button title="Sync Lyfta" disabled={syncing} onPress={() => void sync()} />
-        {/* TEMPORARY (Plan 2 replaces this screen): re-fetch everything with the current parser. */}
-        <Button title="Full re-sync" disabled={syncing} onPress={() => void fullResync()} />
-        <Text testID="sync-result">
-          {syncing ? 'Syncing...' : result === null ? 'Not run yet' : JSON.stringify(result)}
+        <View style={styles.row}>
+          {/* `sync` never rejects, and a second tap while one is in flight shares that run. */}
+          <Button title="Sync" disabled={running} onPress={() => void sync.run()} />
+          {/* A full re-backfill: forgets sync progress and retries skipped workouts. */}
+          <Button title="Re-sync" disabled={running} onPress={() => void sync.resync()} />
+        </View>
+        <Text testID="sync-status">
+          {running
+            ? 'Syncing...'
+            : lastResult === null
+              ? 'Not run yet'
+              : `Workouts: ${lastResult.workouts.status} | Schedule: ${lastResult.schedule.status}`}
         </Text>
+        <Text testID="sync-result">{lastResult === null ? '' : JSON.stringify(lastResult)}</Text>
 
         <Text style={styles.section}>Stored data</Text>
         <Text testID="workout-count">Workouts: {snapshot?.count ?? '-'}</Text>

@@ -12,7 +12,6 @@ import { LyftaError } from './LyftaError';
 import type { LyftaClient } from './LyftaClient';
 import { LB_TO_KG } from './parseWorkouts';
 import {
-  createLyftaSyncRunner,
   incrementalWindow,
   DELETION_PAUSE_RETRY_MS,
   LYFTA_MAX_PAGES,
@@ -265,17 +264,6 @@ test.each([[{ weight_unit: 'stone' }], [{ weight_unit: null }], [{}], ['nonsense
     );
   },
 );
-
-test('concurrent runs share one sync', async () => {
-  const { deps, state } = await setup(manyWorkouts(3));
-  const runner = createLyftaSyncRunner(deps);
-  const [a, b] = await Promise.all([runner.run(), runner.run()]);
-  expect(a).toEqual(b);
-  expect(state.calls.filter((c) => c.page === 1)).toHaveLength(1);
-
-  await runner.run(); // settled, so a new sync starts
-  expect(state.calls.filter((c) => c.page === 1)).toHaveLength(2);
-});
 
 test('keeps stored workouts that now fail validation instead of deleting them', async () => {
   const { deps, state, workouts } = await setup([rawWorkout(1, 1), rawWorkout(2, 2)]);

@@ -296,21 +296,3 @@ export async function syncLyfta(deps: LyftaSyncDeps): Promise<LyftaSyncResult> {
     return isInvalidKey ? { status: 'invalid_key' } : { status: 'error', message };
   }
 }
-
-/**
- * Wraps `syncLyfta` so overlapping triggers (app start, pull-to-refresh) share one run instead of
- * double-fetching and hitting rate limits.
- */
-export function createLyftaSyncRunner(deps: LyftaSyncDeps): { run(): Promise<LyftaSyncResult> } {
-  let inFlight: Promise<LyftaSyncResult> | null = null;
-  return {
-    run() {
-      if (inFlight === null) {
-        inFlight = syncLyfta(deps).finally(() => {
-          inFlight = null;
-        });
-      }
-      return inFlight;
-    },
-  };
-}
