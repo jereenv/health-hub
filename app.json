@@ -97,6 +97,14 @@
         }
       ],
       "react-native-health-connect",
+      [
+        "react-native-ble-manager",
+        {
+          "neverForLocation": true,
+          "isBleRequired": false,
+          "companionDeviceEnabled": false
+        }
+      ],
       "expo-sharing",
       "@react-native-community/datetimepicker"
     ]
