@@ -68,7 +68,6 @@ test('derived origin omits Sun but keeps the other sources', () => {
   expect(explainerSources('lean_mass_kg', 'movinglife_derived')).toEqual([]);
   expect(explainerSources('bmr_kcal', 'movinglife_derived').map((source) => source.id)).toEqual([
     'katchMcArdle',
-    'mifflin1990',
   ]);
   expect(explainerSources('weight', 'scale')).toEqual([]);
 });

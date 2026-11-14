@@ -54,3 +54,17 @@ export function toBodyChartData(
     return datum;
   });
 }
+
+export interface LegendEntry {
+  label: 'Scale' | 'MovingLife';
+  hollow: boolean;
+}
+
+/** Names the methods of the visible points: MovingLife's are hollow, everything else is the scale. */
+export function legendEntries(series: MetricSeries): LegendEntry[] {
+  const filled = series.slots.filter((slot) => slot.value !== null);
+  const entries: LegendEntry[] = [];
+  if (filled.some((slot) => !slot.hollow)) entries.push({ label: 'Scale', hollow: false });
+  if (filled.some((slot) => slot.hollow)) entries.push({ label: 'MovingLife', hollow: true });
+  return entries;
+}

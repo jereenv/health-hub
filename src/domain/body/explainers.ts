@@ -16,6 +16,10 @@ const ROUGH = 'A rough estimate. No published equation exists for a foot scale.'
 export const MOVINGLIFE_NOTE =
   "This value is MovingLife's own number, imported from your history. It is not comparable to Health Hub's formula, so the chart marks it with hollow points and never joins the two.";
 
+/** Shown for fat mass, lean mass and BMR computed from MovingLife's body fat. */
+export const MOVINGLIFE_DERIVED_NOTE =
+  "Calculated by Health Hub from MovingLife's body fat, so it is only as reliable as that number.";
+
 export const EXPLAINERS: Readonly<Record<MetricId, Explainer>> = {
   weight: {
     what: 'Your total body weight, measured by the scale.',
@@ -117,11 +121,14 @@ function sourcesById(ids: readonly string[]): FormulaSource[] {
 
 /**
  * The citations to show for a metric. MovingLife's own number has no formula of ours behind it;
- * a value derived from MovingLife body fat drops the Sun equation, which it does not use.
+ * a value derived from MovingLife body fat drops the Sun and Mifflin equations, which it does not use.
  */
 export function explainerSources(metric: MetricId, origin: Origin): readonly FormulaSource[] {
   if (origin === 'movinglife') return [];
   const ids = EXPLAINERS[metric].formulaSourceIds;
-  const used = origin === 'movinglife_derived' ? ids.filter((id) => id !== 'sun2003') : ids;
+  const used =
+    origin === 'movinglife_derived'
+      ? ids.filter((id) => id !== 'sun2003' && id !== 'mifflin1990')
+      : ids;
   return sourcesById(used);
 }

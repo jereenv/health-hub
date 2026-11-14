@@ -5,8 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { buildMetricDetail, parseMetricId } from '@/domain/body/metricDetail';
 import { formatMetricChange, formatMetricValue } from '@/domain/body/formatMetric';
-import { computeReadings, profileAt } from '@/domain/body/readings';
-import { METRIC_META, isLegacyOrigin } from '@/domain/body/types';
+import { computeReadings } from '@/domain/body/readings';
+import { METRIC_META } from '@/domain/body/types';
 import type { MetricId } from '@/domain/body/types';
 import { formatShortDate } from '@/domain/format/dates';
 import type { RangeKind } from '@/domain/series/buckets';
@@ -78,8 +78,7 @@ export function MetricDetailScreen(): React.JSX.Element {
     if (metric === null || data.status !== 'ready') return null;
     const { readings, versions, watch } = data.data;
     const computed = computeReadings(readings, versions);
-    const latest = computed[computed.length - 1];
-    const profile = latest === undefined ? null : profileAt(versions, latest.measuredAt);
+    const profile = versions[versions.length - 1] ?? null;
     return buildMetricDetail({ metric, readings: computed, profile, watch, range, today, unit });
   }, [metric, data, range, today, unit]);
 
@@ -189,7 +188,7 @@ export function MetricDetailScreen(): React.JSX.Element {
             <TierBadge tier={detail.tier} />
             <OriginChip origin={current.origin} />
           </View>
-          {detail.asOfLatest ? null : (
+          {current.date === today ? null : (
             <AppText variant="caption" color="muted">
               {`Last measured ${formatShortDate(current.date)}`}
             </AppText>
@@ -226,6 +225,9 @@ export function MetricDetailScreen(): React.JSX.Element {
             height={200}
           />
         </Card>
+        <AppText variant="caption" color="muted">
+          Each day shows its first weigh-in.
+        </AppText>
 
         <StatGroup
           items={[
@@ -245,11 +247,7 @@ export function MetricDetailScreen(): React.JSX.Element {
           </AppText>
         ) : null}
 
-        <ExplainerCard
-          metric={metric}
-          sources={detail.sources}
-          movingLife={isLegacyOrigin(current.origin)}
-        />
+        <ExplainerCard metric={metric} sources={detail.sources} origin={current.origin} />
 
         {detail.tip === null ? null : (
           <Card style={{ padding: SPACE.card, borderRadius: RADIUS.tile }}>

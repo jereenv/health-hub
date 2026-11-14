@@ -71,6 +71,23 @@ test('asOfLatest is false when the metric was last measured on an earlier day', 
   expect(detail('body_fat_pct', [reading(1, '2026-11-12', 80, 20)]).asOfLatest).toBe(true);
 });
 
+test('the current value is the latest reading, while the chart keeps the first reading of each day', () => {
+  const result = detail('weight', [
+    { ...reading(1, '2026-11-13', 81), measuredAt: '2026-11-13T09:19:00.000Z' },
+    { ...reading(2, '2026-11-13', 79), measuredAt: '2026-11-13T19:02:00.000Z' },
+  ]);
+  expect(result.current).toMatchObject({ value: 79, readingId: 2, date: '2026-11-13' });
+  expect(result.series.slots[result.series.slots.length - 1]?.value).toBe(81);
+});
+
+test('BMR and fat mass on legacy readings cite our formula, not only MovingLife', () => {
+  const readings = [reading(1, '2026-11-12', 80, 20)];
+  expect(detail('bmr_kcal', readings).current?.origin).toBe('movinglife_derived');
+  expect(detail('bmr_kcal', readings).sources.map((s) => s.id)).toEqual(['katchMcArdle']);
+  expect(detail('fat_mass_kg', readings).current?.origin).toBe('movinglife_derived');
+  expect(detail('body_fat_pct', readings).sources).toEqual([]);
+});
+
 test('tier follows the current point: a legacy body fat is estimated with origin movinglife', () => {
   const result = detail('body_fat_pct', [reading(1, '2026-11-12', 80, 20)]);
   expect(result.tier).toBe('estimated');

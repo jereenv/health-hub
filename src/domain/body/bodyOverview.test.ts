@@ -145,3 +145,18 @@ test('no readings gives a null latest and empty lists', () => {
     onlyLegacy: false,
   });
 });
+
+test('a profile saved after the latest weigh-in changes the banner and ranges immediately', () => {
+  const oldProfile: Profile = { ...PROFILE, birthDate: null };
+  const newProfile: Profile = {
+    ...PROFILE,
+    effectiveFrom: '2026-11-13T09:00:00.000Z',
+  };
+  const readings = computeReadings([legacy(1, '2026-11-12', 80, 22)], [oldProfile, newProfile]);
+  const before = buildBodyOverview(readings, oldProfile, TODAY);
+  expect(before.missing).toEqual(['birthDate']);
+  expect(before.rows[0]).toMatchObject({ id: 'body_fat_pct', statusLabel: null });
+  const after = buildBodyOverview(readings, newProfile, TODAY);
+  expect(after.missing).toEqual([]);
+  expect(after.rows[0]).toMatchObject({ statusLabel: 'Slightly high', statusTone: 'high' });
+});

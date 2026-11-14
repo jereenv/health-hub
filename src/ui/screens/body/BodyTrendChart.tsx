@@ -7,7 +7,7 @@ import { TrendChart } from '@/ui/charts/TrendChart';
 import { AppText } from '@/ui/components/AppText';
 import { useTheme } from '@/ui/theme/ThemeProvider';
 
-import { toBodyChartData } from './chartData';
+import { legendEntries, toBodyChartData } from './chartData';
 
 function LegendItem({
   marker,
@@ -73,30 +73,24 @@ export function BodyTrendChart({
       />
       {showLegend ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
-          <LegendItem
-            label="Health Hub"
-            marker={
-              <View
-                style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.muted }}
-              />
-            }
-          />
-          {series.mixed ? (
+          {legendEntries(series).map((entry) => (
             <LegendItem
-              label="MovingLife"
+              key={entry.label}
+              label={entry.label}
               marker={
                 <View
                   style={{
                     width: 8,
                     height: 8,
                     borderRadius: 4,
-                    borderWidth: 1.5,
+                    borderWidth: entry.hollow ? 1.5 : 0,
                     borderColor: colors.muted,
+                    backgroundColor: entry.hollow ? 'transparent' : colors.muted,
                   }}
                 />
               }
             />
-          ) : null}
+          ))}
           {showWatch ? (
             <LegendItem
               label="Watch check"

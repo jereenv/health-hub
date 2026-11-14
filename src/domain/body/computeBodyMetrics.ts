@@ -36,29 +36,31 @@ export function computeBodyMetrics(input: BodyInput): BodyMetrics {
   const age = ageYears !== null && Number.isFinite(ageYears) && ageYears >= 0 ? ageYears : null;
   const bmiValue = height === null ? null : bmiOf(weightKg, height);
   if (bmiValue !== null) put('bmi', bmiValue, 'exact', 'formula');
-  if (sex === null) return metrics;
-
+  // Without a sex only the impedance equations and Mifflin BMR are unavailable; MovingLife's own
+  // body fat needs neither sex, height nor age.
   const impedance =
+    sex !== null &&
     height !== null &&
     isPositive(impedanceOhm) &&
     impedanceIsUsable({ sex, heightCm: height, weightKg, impedanceOhm })
-      ? { heightCm: height, impedanceOhm }
+      ? { sex, heightCm: height, impedanceOhm }
       : null;
 
   let leanMass: { value: number; origin: Origin } | null = null;
 
   if (impedance) {
-    const ffm = fatFreeMassSun({ sex, weightKg, ...impedance });
+    const { sex, ...body } = impedance; // `sex` is non-null here
+    const ffm = fatFreeMassSun({ sex, weightKg, ...body });
     const bodyFatPct = ((weightKg - ffm) / weightKg) * 100;
     put('body_fat_pct', bodyFatPct, 'estimated', 'formula');
     put('fat_mass_kg', weightKg - ffm, 'estimated', 'formula');
     put('lean_mass_kg', ffm, 'estimated', 'formula');
     leanMass = { value: ffm, origin: 'formula' };
 
-    const waterKg = totalBodyWaterKgSun({ sex, weightKg, ...impedance });
+    const waterKg = totalBodyWaterKgSun({ sex, weightKg, ...body });
     put('water_pct', (waterKg / weightKg) * 100, 'estimated', 'formula');
     if (age !== null) {
-      const muscleKg = skeletalMuscleKgJanssen({ sex, age, ...impedance });
+      const muscleKg = skeletalMuscleKgJanssen({ sex, age, ...body });
       put('muscle_pct', (muscleKg / weightKg) * 100, 'estimated', 'formula');
     }
 
@@ -98,7 +100,7 @@ export function computeBodyMetrics(input: BodyInput): BodyMetrics {
 
   if (leanMass) {
     put('bmr_kcal', bmrKatchMcArdle(leanMass.value), 'estimated', leanMass.origin);
-  } else if (height !== null && age !== null) {
+  } else if (sex !== null && height !== null && age !== null) {
     put(
       'bmr_kcal',
       bmrMifflinStJeor({ sex, weightKg, heightCm: height, age }),

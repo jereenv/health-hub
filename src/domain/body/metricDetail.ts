@@ -5,17 +5,16 @@ import type { RangeKind } from '@/domain/series/buckets';
 import type { DateKey } from '@/domain/time/localDate';
 import type { WeightUnit } from '@/domain/workouts/types';
 
-import { EXPLAINERS } from './explainers';
+import { explainerSources } from './explainers';
 import { rangeForProfile } from './profileRange';
 import { NEUTRAL_DESCRIPTOR, classify } from './ranges';
 import type { Classified, MetricRange } from './ranges';
 import type { ReadingMetrics } from './readings';
 import { buildMetricSeries, change30, dayPoints, watchByDay } from './series';
 import type { DayPoint, MetricSeries } from './series';
-import { FORMULA_SOURCES } from './sources';
 import type { FormulaSource } from './sources';
 import { tipFor } from './tips';
-import { METRIC_IDS, isLegacyOrigin } from './types';
+import { METRIC_IDS } from './types';
 import type { MetricId, Tier } from './types';
 
 /** The metric id in a route param, or null for anything that is not one of the 13 ids. */
@@ -25,9 +24,9 @@ export function parseMetricId(param: string | string[] | undefined): MetricId | 
 }
 
 export interface MetricDetail {
-  /** The latest point of the metric. */
+  /** The latest reading that has the metric: the value the Body page shows. */
   current: DayPoint | null;
-  /** The current point is from the latest weigh-in day. */
+  /** The current value is from the day of the latest weigh-in. */
   asOfLatest: boolean;
   range: MetricRange | null;
   classified: Classified | null;
@@ -57,7 +56,7 @@ export function buildMetricDetail(input: {
   const { metric, readings, profile, range, today, unit } = input;
   const days = dayPoints(readings, metric);
   const series = buildMetricSeries(days, range, today);
-  const current = series.current;
+  const current = latestPoint(readings, metric);
   const latestDate = readings[readings.length - 1]?.date ?? null;
   const reading = current === null ? undefined : readings.find((r) => r.id === current.readingId);
 
@@ -79,13 +78,7 @@ export function buildMetricDetail(input: {
   const tip =
     tipText === null ? null : tipText.replace('{x}', formatChangeSize(metric, change ?? 0, unit));
 
-  const legacy = current !== null && isLegacyOrigin(current.origin);
-  const sources = legacy
-    ? []
-    : EXPLAINERS[metric].formulaSourceIds.flatMap((id) => {
-        const source = FORMULA_SOURCES.find((s) => s.id === id);
-        return source ? [source] : [];
-      });
+  const sources = current === null ? [] : explainerSources(metric, current.origin);
 
   return {
     current,
@@ -100,6 +93,26 @@ export function buildMetricDetail(input: {
     sources,
     descriptor: metricRange === null ? (NEUTRAL_DESCRIPTOR[metric] ?? null) : null,
   };
+}
+
+/**
+ * The latest reading that has the metric, the same one the Body page shows. The chart keeps the
+ * first reading of each day (Ruling 12); this is the headline value.
+ */
+function latestPoint(readings: readonly ReadingMetrics[], metric: MetricId): DayPoint | null {
+  for (let i = readings.length - 1; i >= 0; i--) {
+    const reading = readings[i] as ReadingMetrics;
+    const value = reading.metrics[metric];
+    if (value) {
+      return {
+        date: reading.date,
+        value: value.value,
+        origin: value.origin,
+        readingId: reading.id,
+      };
+    }
+  }
+  return null;
 }
 
 /** "1.3" for points, "2.4 kg" for masses: the size of a change without its sign. */

@@ -95,7 +95,7 @@ test('impedance wins when both impedance and a legacy value exist', () => {
   expect(value(metrics, 'body_fat_pct')).not.toBe(20);
 });
 
-test('missing height removes bmi, FFM and everything built on them; missing age removes muscle, Mifflin, visceral, metabolic age and health score; missing sex removes everything but weight', () => {
+test('missing height removes bmi, FFM and everything built on them; missing age removes muscle, Mifflin, visceral, metabolic age and health score; missing sex is covered by its own test below', () => {
   const noHeight = computeBodyMetrics({ ...PERSON_M, heightCm: null });
   expect(noHeight.bmi).toBeUndefined();
   // Falls back to the legacy value, since the impedance cannot be used without a height.
@@ -120,10 +120,6 @@ test('missing height removes bmi, FFM and everything built on them; missing age 
     legacyBodyFatPct: null,
   });
   expect(noAgeNoImpedance.bmr_kcal).toBeUndefined();
-
-  // Without sex nothing sex-dependent is computed. BMI needs only height, so it stays.
-  const noSex = computeBodyMetrics({ ...PERSON_M, sex: null });
-  expect(Object.keys(noSex).sort()).toEqual(['bmi', 'weight']);
 });
 
 test('a legacy body fat of 0, 100, NaN or negative is ignored', () => {
@@ -163,4 +159,15 @@ test('METRIC_IDS has the 13 ids in order, each with metadata', () => {
   expect(METRIC_IDS[0]).toBe('weight');
   expect(METRIC_IDS[12]).toBe('health_score');
   for (const id of METRIC_IDS) expect(METRIC_META[id].label.length).toBeGreaterThan(0);
+});
+
+test('without a sex a legacy reading still gets weight, BMI, MovingLife body fat, fat and lean mass and Katch-McArdle BMR', () => {
+  const metrics = computeBodyMetrics({ ...PERSON_M, sex: null });
+  expect(Object.keys(metrics).sort()).toEqual(
+    ['weight', 'bmi', 'body_fat_pct', 'fat_mass_kg', 'lean_mass_kg', 'bmr_kcal'].sort(),
+  );
+  expect(metrics.body_fat_pct?.origin).toBe('movinglife');
+  expect(value(metrics, 'bmr_kcal')).toBeCloseTo(1752.4, 1);
+  const noLegacy = computeBodyMetrics({ ...PERSON_M, sex: null, legacyBodyFatPct: null });
+  expect(Object.keys(noLegacy).sort()).toEqual(['bmi', 'weight']);
 });

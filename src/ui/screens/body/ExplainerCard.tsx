@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { EXPLAINERS, MOVINGLIFE_NOTE } from '@/domain/body/explainers';
+import { EXPLAINERS, MOVINGLIFE_DERIVED_NOTE, MOVINGLIFE_NOTE } from '@/domain/body/explainers';
 import { FORMULA_VERSION } from '@/domain/body/formulas';
 import type { FormulaSource } from '@/domain/body/sources';
-import type { MetricId } from '@/domain/body/types';
+import type { MetricId, Origin } from '@/domain/body/types';
 import { AppText } from '@/ui/components/AppText';
 import { Card } from '@/ui/components/Card';
 import { Icon } from '@/ui/components/Icon';
@@ -16,12 +16,12 @@ import { RADIUS, SPACE, TOUCH_MIN } from '@/ui/theme/tokens';
 export function ExplainerCard({
   metric,
   sources,
-  movingLife,
+  origin,
 }: {
   metric: MetricId;
   sources: readonly FormulaSource[];
-  /** The current value is MovingLife's own number, so the formula does not apply to it. */
-  movingLife: boolean;
+  /** Where the current value came from: decides which provenance note shows. */
+  origin: Origin;
 }): React.JSX.Element {
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
@@ -53,16 +53,23 @@ export function ExplainerCard({
           <AppText variant="body" color="muted">
             {explainer.reliability}
           </AppText>
-          {movingLife ? (
+          {origin === 'movinglife' ? (
             <AppText variant="caption" color="muted">
               {MOVINGLIFE_NOTE}
             </AppText>
           ) : (
-            sources.map((source) => (
-              <AppText key={source.id} variant="caption" color="muted">
-                {`Formula: ${source.citation} ${source.link}`}
-              </AppText>
-            ))
+            <>
+              {origin === 'movinglife_derived' ? (
+                <AppText variant="caption" color="muted">
+                  {MOVINGLIFE_DERIVED_NOTE}
+                </AppText>
+              ) : null}
+              {sources.map((source) => (
+                <AppText key={source.id} variant="caption" color="muted">
+                  {`Formula: ${source.citation} ${source.link}`}
+                </AppText>
+              ))}
+            </>
           )}
           <AppText variant="caption" color="muted">{`Formula version ${FORMULA_VERSION}`}</AppText>
         </View>

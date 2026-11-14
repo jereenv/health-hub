@@ -6,7 +6,7 @@ import { useContainer } from '@/bootstrap/ContainerContext';
 import { buildBodyOverview } from '@/domain/body/bodyOverview';
 import type { MetricRowModel } from '@/domain/body/bodyOverview';
 import { formatMetricChange, formatMetricValue } from '@/domain/body/formatMetric';
-import { computeReadings, profileAt } from '@/domain/body/readings';
+import { computeReadings } from '@/domain/body/readings';
 import { METRIC_META } from '@/domain/body/types';
 import { formatWeightNumber } from '@/domain/format/units';
 import { localDateKey } from '@/domain/time/localDate';
@@ -60,8 +60,7 @@ export function BodyScreen(): React.JSX.Element {
     if (data.status !== 'ready') return null;
     const { readings, versions } = data.data;
     const computed = computeReadings(readings, versions);
-    const latest = computed[computed.length - 1];
-    const profile = latest === undefined ? null : profileAt(versions, latest.measuredAt);
+    const profile = versions[versions.length - 1] ?? null;
     return buildBodyOverview(computed, profile, today);
   }, [data, today]);
 

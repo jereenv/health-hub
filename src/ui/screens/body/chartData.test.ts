@@ -1,6 +1,6 @@
 import type { MetricSeries, SlotPoint } from '@/domain/body/series';
 
-import { toBodyChartData } from './chartData';
+import { legendEntries, toBodyChartData } from './chartData';
 
 function series(slots: SlotPoint[]): MetricSeries {
   return { slots, average7: null, stats: null, current: null, mixed: false };
@@ -55,4 +55,20 @@ test('null slots keep their key and axis label but carry value null', () => {
     '2026-11-13',
   );
   expect(data[1]).toMatchObject({ key: '2026-11-12', axisLabel: '12 Nov', value: null });
+});
+
+test('the legend names the methods of the visible points: MovingLife hollow, everything else Scale', () => {
+  expect(legendEntries(series([slot('2026-11-12', 80, true), slot('2026-11-13', null)]))).toEqual([
+    { label: 'MovingLife', hollow: true },
+  ]);
+  expect(legendEntries(series([slot('2026-11-12', 80, false)]))).toEqual([
+    { label: 'Scale', hollow: false },
+  ]);
+  expect(
+    legendEntries(series([slot('2026-11-11', 80, true), slot('2026-11-12', 79, false)])),
+  ).toEqual([
+    { label: 'Scale', hollow: false },
+    { label: 'MovingLife', hollow: true },
+  ]);
+  expect(legendEntries(series([slot('2026-11-12', null)]))).toEqual([]);
 });
