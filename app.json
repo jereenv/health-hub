@@ -96,7 +96,9 @@
           }
         }
       ],
-      "react-native-health-connect"
+      "react-native-health-connect",
+      "expo-sharing",
+      "@react-native-community/datetimepicker"
     ]
   }
 }

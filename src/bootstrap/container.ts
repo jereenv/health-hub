@@ -3,6 +3,8 @@ import { createSqliteBodyRepository } from '@/data/body/BodyRepository';
 import { openExpoSqlDatabase } from '@/data/db/expoSqlDatabase';
 import { migrate } from '@/data/db/migrate';
 import { DATABASE_NAME, MIGRATIONS } from '@/data/db/schema';
+import type { ExportDelivery } from '@/data/export/ExportDelivery';
+import { createExpoExportDelivery } from '@/data/export/expoExportDelivery';
 import { createExpoHealthConnectGateway } from '@/data/healthconnect/expoHealthConnectGateway';
 import { syncHealthConnect } from '@/data/healthconnect/healthConnectSync';
 import type { HealthConnectGateway } from '@/data/healthconnect/HealthConnectGateway';
@@ -45,6 +47,8 @@ export interface AppContainer {
   healthConnectGateway: HealthConnectGateway;
   /** The only way to sync or wipe: it keeps those operations from overlapping. */
   sync: SyncCoordinator;
+  /** Share sheet, clipboard and the export cache folder. */
+  exportDelivery: ExportDelivery;
 }
 
 /** Opens and migrates the database, then wires repositories, secret store and the sync coordinator. */
@@ -97,6 +101,7 @@ async function createAppContainer(): Promise<AppContainer> {
     healthConnect,
     healthConnectGateway,
     sync,
+    exportDelivery: createExpoExportDelivery(),
   };
 }
 
