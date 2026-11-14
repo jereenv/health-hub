@@ -1,0 +1,675 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`a default bar chart renders as it did before the overlay props 1`] = `
+<View
+  accessibilityLabel="Weight, last 3 days: from 80.0 kg to 79.9 kg, highest 80.0 kg."
+  accessibilityRole="image"
+  accessible={true}
+  onLayout={[Function]}
+  style={
+    {
+      "height": 160,
+    }
+  }
+>
+  <View>
+    <View
+      style={
+        [
+          {
+            "height": 160,
+            "width": 300,
+          },
+          {},
+        ]
+      }
+    >
+      <RNSVGSvgView
+        bbHeight={160}
+        bbWidth={300}
+        focusable={false}
+        height={160}
+        style={
+          [
+            {
+              "backgroundColor": "transparent",
+              "borderWidth": 0,
+            },
+            {
+              "flex": 0,
+              "height": 160,
+              "width": 300,
+            },
+          ]
+        }
+        width={300}
+      >
+        <RNSVGGroup
+          fill={
+            {
+              "payload": 4278190080,
+              "type": 0,
+            }
+          }
+        >
+          <RNSVGLine
+            fill={
+              {
+                "payload": 4278190080,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            stroke={
+              {
+                "payload": 251658240,
+                "type": 0,
+              }
+            }
+            strokeWidth={1}
+            x1={0}
+            x2={300}
+            y1={138}
+            y2={138}
+          />
+          <RNSVGLine
+            fill={
+              {
+                "payload": 4278190080,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            stroke={
+              {
+                "payload": 251658240,
+                "type": 0,
+              }
+            }
+            strokeWidth={1}
+            x1={0}
+            x2={300}
+            y1={75}
+            y2={75}
+          />
+          <RNSVGLine
+            fill={
+              {
+                "payload": 4278190080,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            stroke={
+              {
+                "payload": 251658240,
+                "type": 0,
+              }
+            }
+            strokeWidth={1}
+            x1={0}
+            x2={300}
+            y1={12}
+            y2={12}
+          />
+          <RNSVGPath
+            d="M3 136L3 27.454545454545453A4 4 0 0 1 7 23.454545454545453L93 23.454545454545453A4 4 0 0 1 97 27.454545454545453L97 136A2 2 0 0 1 95 138L5 138A2 2 0 0 1 3 136Z"
+            fill={
+              {
+                "payload": 771751936,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "fill",
+              ]
+            }
+          />
+          <RNSVGPath
+            d="M103 136L103 28.313636363636355A4 4 0 0 1 107 24.313636363636355L193 24.313636363636355A4 4 0 0 1 197 28.313636363636355L197 136A2 2 0 0 1 195 138L105 138A2 2 0 0 1 103 136Z"
+            fill={
+              {
+                "payload": 771751936,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "fill",
+              ]
+            }
+          />
+          <RNSVGPath
+            d="M203 136L203 27.597727272727266A4 4 0 0 1 207 23.597727272727266L293 23.597727272727266A4 4 0 0 1 297 27.597727272727266L297 136A2 2 0 0 1 295 138L205 138A2 2 0 0 1 203 136Z"
+            fill={
+              {
+                "payload": 771751936,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "fill",
+              ]
+            }
+          />
+        </RNSVGGroup>
+      </RNSVGSvgView>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "left": 18,
+              "position": "absolute",
+              "textAlign": "center",
+              "top": 144,
+              "width": 64,
+            },
+          ]
+        }
+      >
+        1 Nov
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "left": 118,
+              "position": "absolute",
+              "textAlign": "center",
+              "top": 144,
+              "width": 64,
+            },
+          ]
+        }
+      >
+        2 Nov
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "left": 218,
+              "position": "absolute",
+              "textAlign": "center",
+              "top": 144,
+              "width": 64,
+            },
+          ]
+        }
+      >
+        Today
+      </Text>
+    </View>
+  </View>
+</View>
+`;
+
+exports[`a default line chart renders as it did before the overlay props 1`] = `
+<View
+  accessibilityLabel="Weight, last 3 days: from 80.0 kg to 79.9 kg, highest 80.0 kg."
+  accessibilityRole="image"
+  accessible={true}
+  onLayout={[Function]}
+  style={
+    {
+      "height": 160,
+    }
+  }
+>
+  <View>
+    <View
+      style={
+        [
+          {
+            "height": 160,
+            "width": 300,
+          },
+          {},
+        ]
+      }
+    >
+      <RNSVGSvgView
+        bbHeight={160}
+        bbWidth={300}
+        focusable={false}
+        height={160}
+        style={
+          [
+            {
+              "backgroundColor": "transparent",
+              "borderWidth": 0,
+            },
+            {
+              "flex": 0,
+              "height": 160,
+              "width": 300,
+            },
+          ]
+        }
+        width={300}
+      >
+        <RNSVGGroup
+          fill={
+            {
+              "payload": 4278190080,
+              "type": 0,
+            }
+          }
+        >
+          <RNSVGLine
+            fill={
+              {
+                "payload": 4278190080,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            stroke={
+              {
+                "payload": 251658240,
+                "type": 0,
+              }
+            }
+            strokeWidth={1}
+            x1={0}
+            x2={260}
+            y1={138}
+            y2={138}
+          />
+          <RNSVGLine
+            fill={
+              {
+                "payload": 4278190080,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            stroke={
+              {
+                "payload": 251658240,
+                "type": 0,
+              }
+            }
+            strokeWidth={1}
+            x1={0}
+            x2={260}
+            y1={75}
+            y2={75}
+          />
+          <RNSVGLine
+            fill={
+              {
+                "payload": 4278190080,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            stroke={
+              {
+                "payload": 251658240,
+                "type": 0,
+              }
+            }
+            strokeWidth={1}
+            x1={0}
+            x2={260}
+            y1={12}
+            y2={12}
+          />
+          <RNSVGPath
+            d="M0 22.500000000000412L130 127.49999999999959L260 39.999999999999446"
+            fill={null}
+            propList={
+              [
+                "fill",
+                "stroke",
+                "strokeWidth",
+                "strokeLinecap",
+                "strokeLinejoin",
+              ]
+            }
+            stroke={
+              {
+                "payload": 4283263744,
+                "type": 0,
+              }
+            }
+            strokeLinecap={1}
+            strokeLinejoin={1}
+            strokeWidth={2}
+          />
+          <RNSVGCircle
+            cx={0}
+            cy={22.500000000000412}
+            fill={
+              {
+                "payload": 4283263744,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "fill",
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            r={3.5}
+            stroke={
+              {
+                "payload": 4294375160,
+                "type": 0,
+              }
+            }
+            strokeWidth={2}
+          />
+          <RNSVGCircle
+            cx={130}
+            cy={127.49999999999959}
+            fill={
+              {
+                "payload": 4283263744,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "fill",
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            r={3.5}
+            stroke={
+              {
+                "payload": 4294375160,
+                "type": 0,
+              }
+            }
+            strokeWidth={2}
+          />
+          <RNSVGCircle
+            cx={260}
+            cy={39.999999999999446}
+            fill={
+              {
+                "payload": 4283263744,
+                "type": 0,
+              }
+            }
+            propList={
+              [
+                "fill",
+                "stroke",
+                "strokeWidth",
+              ]
+            }
+            r={3.5}
+            stroke={
+              {
+                "payload": 4294375160,
+                "type": 0,
+              }
+            }
+            strokeWidth={2}
+          />
+        </RNSVGGroup>
+      </RNSVGSvgView>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "position": "absolute",
+              "right": 0,
+              "top": 122,
+              "width": 40,
+            },
+          ]
+        }
+      >
+        79.3 kg
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "position": "absolute",
+              "right": 0,
+              "top": 59,
+              "width": 40,
+            },
+          ]
+        }
+      >
+        79.7 kg
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "position": "absolute",
+              "right": 0,
+              "top": -4,
+              "width": 40,
+            },
+          ]
+        }
+      >
+        80.1 kg
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "left": 0,
+              "position": "absolute",
+              "textAlign": "center",
+              "top": 144,
+              "width": 64,
+            },
+          ]
+        }
+      >
+        1 Nov
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "left": 98,
+              "position": "absolute",
+              "textAlign": "center",
+              "top": 144,
+              "width": 64,
+            },
+          ]
+        }
+      >
+        2 Nov
+      </Text>
+      <Text
+        style={
+          [
+            {
+              "fontFamily": "Geist",
+              "fontSize": 11,
+              "fontWeight": "500",
+              "lineHeight": 14,
+            },
+            {
+              "color": "#6B6B73",
+            },
+            {
+              "fontVariant": [
+                "tabular-nums",
+              ],
+            },
+            false,
+            {
+              "left": 228,
+              "position": "absolute",
+              "textAlign": "center",
+              "top": 144,
+              "width": 64,
+            },
+          ]
+        }
+      >
+        Today
+      </Text>
+    </View>
+  </View>
+</View>
+`;

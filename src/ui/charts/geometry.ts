@@ -94,15 +94,35 @@ export function axisLabelIndexes(count: number): number[] {
   return [...new Set([0, Math.floor((count - 1) / 2), count - 1])];
 }
 
+/**
+ * Runs of indexes to draw as separate line segments. Nulls are skipped, so a run bridges gaps; a
+ * new run starts at every index where `breakBefore` is true.
+ */
+export function lineRuns(
+  values: readonly (number | null)[],
+  breakBefore: readonly boolean[],
+): number[][] {
+  const runs: number[][] = [];
+  values.forEach((value, i) => {
+    if (value === null) return;
+    const last = runs[runs.length - 1];
+    if (last === undefined || breakBefore[i] === true) runs.push([i]);
+    else last.push(i);
+  });
+  return runs;
+}
+
+/** Nulls are gaps in the series and are ignored. */
 export function describeSeries(
   title: string,
   caption: string,
-  values: readonly number[],
+  values: readonly (number | null)[],
   formatValue: (v: number) => string,
 ): string {
   const head = `${title}, ${caption}:`;
-  if (values.length === 0) return `${head} no data yet.`;
-  const first = formatValue(values[0]!);
-  const last = formatValue(values[values.length - 1]!);
-  return `${head} from ${first} to ${last}, highest ${formatValue(Math.max(...values))}.`;
+  const present = values.filter((v): v is number => v !== null);
+  if (present.length === 0) return `${head} no data yet.`;
+  const first = formatValue(present[0]!);
+  const last = formatValue(present[present.length - 1]!);
+  return `${head} from ${first} to ${last}, highest ${formatValue(Math.max(...present))}.`;
 }

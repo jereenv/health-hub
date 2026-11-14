@@ -11,6 +11,7 @@ import {
   barPath,
   describeSeries,
   linePath,
+  lineRuns,
   nearestIndex,
   valueDomain,
   xPositions,
@@ -20,9 +21,14 @@ import type { PlotBox } from './geometry';
 
 export interface ChartDatum {
   key: string;
-  value: number;
+  /** Null is an empty slot: it keeps its place on the axis but has no dot, bar or tooltip. */
+  value: number | null;
   tooltipLabel: string;
   axisLabel: string;
+  /** Drawn as a ring instead of a filled dot (a different measuring method). */
+  hollow?: boolean;
+  /** The line starts a new segment here instead of joining the previous point. */
+  breakBefore?: boolean;
 }
 
 const LONG_PRESS_MS = 200;
@@ -32,6 +38,12 @@ const BAND_GAP = 6;
 const AXIS_WIDTH = 40;
 const BUBBLE_WIDTH = 110;
 const LABEL_WIDTH = 64;
+const AVERAGE_DOT_RADIUS = 2.5;
+const WATCH_DOT_RADIUS = 3.5;
+
+function present(values: readonly (number | null)[]): number[] {
+  return values.filter((v): v is number => v !== null);
+}
 
 /** A line or bar chart in SVG with a press-and-hold tooltip and a spoken summary. */
 export function TrendChart({
@@ -43,6 +55,8 @@ export function TrendChart({
   height = 160,
   showValueAxis = false,
   highlightLast = false,
+  average,
+  watch,
 }: {
   kind: 'line' | 'bar';
   data: readonly ChartDatum[];
@@ -52,6 +66,13 @@ export function TrendChart({
   height?: number;
   showValueAxis?: boolean;
   highlightLast?: boolean;
+  /**
+   * Aligned to `data`. When given, the accent line draws it and the daily points become small
+   * muted dots.
+   */
+  average?: readonly (number | null)[];
+  /** Aligned to `data`. Drawn as a separate dotted line with ring markers, bridging gaps. */
+  watch?: readonly (number | null)[];
 }): React.JSX.Element {
   const { colors } = useTheme();
   const [width, setWidth] = useState(0);
@@ -68,14 +89,27 @@ export function TrendChart({
   };
   const values = useMemo(() => data.map((d) => d.value), [data]);
   const domain = useMemo(
-    () => valueDomain(values, { includeZero: kind === 'bar' }),
-    [values, kind],
+    () =>
+      valueDomain(present([...values, ...(average ?? []), ...(watch ?? [])]), {
+        includeZero: kind === 'bar',
+      }),
+    [values, average, watch, kind],
   );
   const xs = xPositions(data.length, box, kind);
   const y = yScale(domain, box);
-  const ys = values.map(y);
+  const ys = values.map((v) => (v === null ? null : y(v)));
+  const lineValues = average ?? values;
+  const runs = useMemo(
+    () =>
+      lineRuns(
+        lineValues,
+        data.map((d) => d.breakBefore === true),
+      ),
+    [lineValues, data],
+  );
+  const watchRun = useMemo(() => (watch ? lineRuns(watch, [])[0] : undefined), [watch]);
   const plotBottom = height - box.bottom;
-  const selected = data.findIndex((d) => d.key === selectedKey);
+  const selected = data.findIndex((d) => d.key === selectedKey && d.value !== null);
 
   useEffect(() => {
     opacity.set(0);
@@ -84,8 +118,12 @@ export function TrendChart({
   const fade = useAnimatedStyle(() => ({ opacity: opacity.get() }));
 
   const select = (touchX: number): void => {
-    const i = nearestIndex(xs, touchX);
-    if (i >= 0) setSelectedKey(data[i]!.key);
+    const filled = data.flatMap((d, index) => (d.value === null ? [] : [index]));
+    const nearest = nearestIndex(
+      filled.map((index) => xs[index]!),
+      touchX,
+    );
+    if (nearest >= 0) setSelectedKey(data[filled[nearest]!]!.key);
   };
   const gesture = Gesture.Exclusive(
     Gesture.Pan()
@@ -128,41 +166,92 @@ export function TrendChart({
                 />
               ))}
               {kind === 'bar'
-                ? data.map((d, i) => (
-                    <Path
-                      key={d.key}
-                      d={barPath(
-                        xs[i]!,
-                        Math.max(band, 1),
-                        Math.min(ys[i]!, plotBottom),
-                        plotBottom,
-                      )}
-                      fill={highlightLast && i === data.length - 1 ? colors.accent : colors.bar}
-                    />
-                  ))
+                ? data.map((d, i) =>
+                    ys[i] === null ? null : (
+                      <Path
+                        key={d.key}
+                        d={barPath(
+                          xs[i]!,
+                          Math.max(band, 1),
+                          Math.min(ys[i]!, plotBottom),
+                          plotBottom,
+                        )}
+                        fill={highlightLast && i === data.length - 1 ? colors.accent : colors.bar}
+                      />
+                    ),
+                  )
                 : null}
-              {kind === 'line' && data.length > 1 ? (
+              {kind === 'line'
+                ? runs
+                    .filter((run) => run.length > 1)
+                    .map((run) => (
+                      <Path
+                        key={`line-${run[0]}`}
+                        d={linePath(
+                          run.map((i) => xs[i]!),
+                          run.map((i) => y(lineValues[i]!)),
+                        )}
+                        stroke={colors.accentInk}
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
+                    ))
+                : null}
+              {kind === 'line' && watchRun !== undefined && watchRun.length > 1 ? (
                 <Path
-                  d={linePath(xs, ys)}
-                  stroke={colors.accentInk}
+                  d={linePath(
+                    watchRun.map((i) => xs[i]!),
+                    watchRun.map((i) => y(watch![i]!)),
+                  )}
+                  stroke={colors.muted}
                   strokeWidth={2}
+                  strokeDasharray="2 4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   fill="none"
                 />
               ) : null}
               {kind === 'line' && data.length <= DOT_LIMIT
-                ? data.map((d, i) => (
-                    <Circle
-                      key={d.key}
-                      cx={xs[i]}
-                      cy={ys[i]}
-                      r={3.5}
-                      fill={colors.accentInk}
-                      stroke={colors.card}
-                      strokeWidth={2}
-                    />
-                  ))
+                ? data.map((d, i) =>
+                    ys[i] === null ? null : average ? (
+                      <Circle
+                        key={d.key}
+                        cx={xs[i]}
+                        cy={ys[i]!}
+                        r={AVERAGE_DOT_RADIUS}
+                        fill={d.hollow ? colors.card : colors.muted}
+                        stroke={colors.muted}
+                        strokeWidth={d.hollow ? 1.5 : 0}
+                      />
+                    ) : (
+                      <Circle
+                        key={d.key}
+                        cx={xs[i]}
+                        cy={ys[i]!}
+                        r={3.5}
+                        fill={d.hollow ? colors.card : colors.accentInk}
+                        stroke={d.hollow ? colors.accentInk : colors.card}
+                        strokeWidth={2}
+                      />
+                    ),
+                  )
+                : null}
+              {kind === 'line' && watch
+                ? watch.map((v, i) =>
+                    v === null ? null : (
+                      <Circle
+                        key={`watch-${data[i]!.key}`}
+                        cx={xs[i]}
+                        cy={y(v)}
+                        r={WATCH_DOT_RADIUS}
+                        fill={colors.card}
+                        stroke={colors.muted}
+                        strokeWidth={2}
+                      />
+                    ),
+                  )
                 : null}
               {selected >= 0 ? (
                 <>
@@ -177,7 +266,7 @@ export function TrendChart({
                   />
                   <Circle
                     cx={xs[selected]}
-                    cy={ys[selected]}
+                    cy={ys[selected] ?? 0}
                     r={6}
                     fill={colors.ink}
                     stroke={colors.card}
@@ -236,7 +325,7 @@ export function TrendChart({
                   {data[selected]!.tooltipLabel}
                 </AppText>
                 <AppText variant="micro" numeric style={{ fontWeight: '600' }}>
-                  {formatValue(data[selected]!.value)}
+                  {formatValue(data[selected]!.value!)}
                 </AppText>
               </View>
             ) : null}

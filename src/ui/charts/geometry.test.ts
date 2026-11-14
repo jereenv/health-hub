@@ -3,6 +3,7 @@ import {
   barPath,
   describeSeries,
   linePath,
+  lineRuns,
   nearestIndex,
   valueDomain,
   xPositions,
@@ -89,5 +90,26 @@ test('describeSeries summarises first, last and highest', () => {
   ).toBe('Weekly volume, last 8 weeks: from 24.1 t to 27.4 t, highest 31.0 t.');
   expect(describeSeries('Weekly volume', 'last 8 weeks', [], String)).toBe(
     'Weekly volume, last 8 weeks: no data yet.',
+  );
+});
+
+test('lineRuns skips nulls and keeps one run when no break is requested', () =>
+  expect(lineRuns([1, null, 2, 3, null], [])).toEqual([[0, 2, 3]]));
+
+test('lineRuns starts a new run where breakBefore is true, even across a null', () =>
+  expect(lineRuns([1, 2, null, 3, 4], [false, false, false, true, false])).toEqual([
+    [0, 1],
+    [3, 4],
+  ]));
+
+test('lineRuns of all nulls is empty', () => expect(lineRuns([null, null], [])).toEqual([]));
+
+test('describeSeries ignores nulls and still says no data for all-null input', () => {
+  const fmt = (v: number): string => `${v} kg`;
+  expect(describeSeries('Weight', 'last 5 days', [null, 80, null, 78, 79], fmt)).toBe(
+    'Weight, last 5 days: from 80 kg to 79 kg, highest 80 kg.',
+  );
+  expect(describeSeries('Weight', 'last 5 days', [null, null], fmt)).toBe(
+    'Weight, last 5 days: no data yet.',
   );
 });
