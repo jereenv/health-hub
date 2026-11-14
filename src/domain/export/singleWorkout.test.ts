@@ -139,3 +139,13 @@ test('an unknown workout id returns the "no longer stored" briefing', () => {
   );
   expect(workoutBriefing(null).markdown).toContain('no longer stored');
 });
+
+test('a set that is both a weight PR and an e1RM PR counts as one personal record', () => {
+  const data = syntheticWeek();
+  data.workouts.push(
+    workoutOn(108, '2026-11-10', 'Heavy', [{ id: 1, name: 'Bench Press', sets: [[95, 5]] }]),
+  );
+  const text = workoutBriefing(108, data).markdown;
+  expect(text).toContain('1 personal record.');
+  expect(text).toContain('- Bench Press: 95×5 (PR)');
+});

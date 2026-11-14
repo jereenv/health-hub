@@ -147,8 +147,11 @@ export function buildSingleWorkout(
       record.lyftaId === workout.lyftaId && !isBodyweightExercise(workouts, record.exerciseId),
   );
 
+  // One per set, as the Workouts screen counts: a set can beat both the weight and the 1RM.
+  const prSets = prSetKeys(records);
+
   const summary = [
-    `- Volume ${volume}; ${formatCount(setCount, 'set')} logged; ${formatCount(records.length, 'personal record')}.`,
+    `- Volume ${volume}; ${formatCount(setCount, 'set')} logged; ${formatCount(prSets.size, 'personal record')}.`,
   ];
   if (request.sections.body) summary.push(weighInLine(prep, date, unit));
   if (request.sections.sleep) summary.push(sleepLine(prep, date));
