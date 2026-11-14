@@ -6,6 +6,8 @@ export interface ProfileRepository {
   getCurrent(): Promise<Profile | null>;
   /** The latest version effective at `iso`, else the earliest version, else null. */
   getAt(iso: string): Promise<Profile | null>;
+  /** Every version, ascending by effective_from then id. */
+  listVersions(): Promise<Profile[]>;
   /** Appends a version. Returns false, writing nothing, when `input` equals the current one. */
   save(input: ProfileInput, at: string): Promise<boolean>;
 }
@@ -65,6 +67,13 @@ export function createSqliteProfileRepository(db: SqlDatabase): ProfileRepositor
         `SELECT ${COLUMNS} FROM profile_version ORDER BY effective_from ASC, id ASC LIMIT 1`,
       );
       return earliest ? toProfile(earliest) : null;
+    },
+
+    async listVersions() {
+      const rows = await db.all<ProfileRow>(
+        `SELECT ${COLUMNS} FROM profile_version ORDER BY effective_from ASC, id ASC`,
+      );
+      return rows.map(toProfile);
     },
 
     save(input, at) {

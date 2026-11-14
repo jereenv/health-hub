@@ -1,3 +1,5 @@
+import type { BodyRepository } from '@/data/body/BodyRepository';
+import { createSqliteBodyRepository } from '@/data/body/BodyRepository';
 import { openExpoSqlDatabase } from '@/data/db/expoSqlDatabase';
 import { migrate } from '@/data/db/migrate';
 import { DATABASE_NAME, MIGRATIONS } from '@/data/db/schema';
@@ -35,6 +37,7 @@ export interface AppContainer {
   syncState: SyncStateRepository;
   settings: SettingsRepository;
   profile: ProfileRepository;
+  body: BodyRepository;
   preferences: PreferencesStore;
   secrets: SecretStore;
   healthConnect: HealthConnectRepository;
@@ -54,6 +57,7 @@ async function createAppContainer(): Promise<AppContainer> {
   const syncState = createSqliteSyncStateRepository(db);
   const settings = createSqliteSettingsRepository(db);
   const profile = createSqliteProfileRepository(db);
+  const body = createSqliteBodyRepository(db);
   const preferences = await createPreferencesStore(settings);
   const secrets = createExpoSecretStore();
   const healthConnect = createSqliteHealthConnectRepository(db);
@@ -87,6 +91,7 @@ async function createAppContainer(): Promise<AppContainer> {
     syncState,
     settings,
     profile,
+    body,
     preferences,
     secrets,
     healthConnect,

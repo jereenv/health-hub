@@ -100,3 +100,15 @@ test('concurrent identical saves write one version', async () => {
   expect(results).toEqual([true, false]);
   expect(await db.first('SELECT COUNT(*) AS n FROM profile_version')).toEqual({ n: 1 });
 });
+
+test('listVersions returns every version ascending', async () => {
+  const { repo } = await setup();
+  expect(await repo.listVersions()).toEqual([]);
+  await repo.save({ ...BASE, heightCm: 176 }, '2026-06-01T00:00:00.000Z');
+  await repo.save(BASE, '2026-01-01T00:00:00.000Z');
+  const versions = await repo.listVersions();
+  expect(versions.map((v) => [v.effectiveFrom, v.heightCm])).toEqual([
+    ['2026-01-01T00:00:00.000Z', 175],
+    ['2026-06-01T00:00:00.000Z', 176],
+  ]);
+});
