@@ -24,6 +24,13 @@ class FakeTransport implements ScaleTransport {
   scanResult: ScalePeripheral | null = { id: 'dev-1', name: 'IF_B2A' };
   scanGate: Promise<void> | null = null;
   connectResult = true;
+  permissionResult: PermissionResult = 'granted';
+  /** Number of upcoming scan() calls that reject, like BleManager.scan when Bluetooth is off. */
+  scanFailures = 0;
+  /** When true, scan() models the real library: one global scan, settled by stopScan(). */
+  globalScan = false;
+  activeScan: ((found: ScalePeripheral | null) => void) | null = null;
+  disconnectGate: Promise<void> | null = null;
   writes: number[][] = [];
   calls: string[] = [];
   scanMatchers: ((p: ScalePeripheral) => boolean)[] = [];
@@ -36,7 +43,7 @@ class FakeTransport implements ScaleTransport {
   }
   async requestPermissions(): Promise<PermissionResult> {
     this.calls.push('requestPermissions');
-    return 'granted';
+    return this.permissionResult;
   }
   async enableBluetooth() {
     this.calls.push('enableBluetooth');
@@ -49,11 +56,23 @@ class FakeTransport implements ScaleTransport {
   async scan(match: (p: ScalePeripheral) => boolean) {
     this.calls.push('scan');
     this.scanMatchers.push(match);
+    if (this.scanFailures > 0) {
+      this.scanFailures -= 1;
+      throw new Error('scan failed to start');
+    }
+    if (this.globalScan) {
+      this.activeScan?.(null);
+      return new Promise<ScalePeripheral | null>((resolve) => {
+        this.activeScan = resolve;
+      });
+    }
     if (this.scanGate) await this.scanGate;
     return this.scanResult;
   }
   async stopScan() {
     this.calls.push('stopScan');
+    this.activeScan?.(null);
+    this.activeScan = null;
   }
   async connect() {
     this.calls.push('connect');
@@ -64,6 +83,7 @@ class FakeTransport implements ScaleTransport {
   }
   async disconnect() {
     this.calls.push('disconnect');
+    if (this.disconnectGate) await this.disconnectGate;
   }
   onBytes(listener: (bytes: number[]) => void) {
     this.bytesListeners.add(listener);
@@ -258,4 +278,120 @@ test('a disconnect before a save reconnects', async () => {
   await flush();
   expect(transport.count('connect')).toBe(2);
   expect(runner.getState()).toEqual({ kind: 'waiting' });
+});
+
+test('a refused permission with Do not ask again leads to Open settings', async () => {
+  const { transport, runner } = await startConnected((t) => {
+    t.preflightResult = 'permission_needed';
+    t.permissionResult = 'blocked';
+  });
+  expect(runner.getState()).toEqual({ kind: 'off', reason: 'permission_needed' });
+  await runner.fixAndRetry('permission_needed');
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'off', reason: 'permission_blocked' });
+  await runner.fixAndRetry('permission_blocked');
+  await flush();
+  expect(transport.count('openSettings')).toBe(1);
+  expect(runner.getState()).toEqual({ kind: 'off', reason: 'permission_blocked' });
+});
+
+test('a plain denial stays on permission_needed, and granting in Settings clears the blocked state', async () => {
+  const { transport, runner } = await startConnected((t) => {
+    t.preflightResult = 'permission_needed';
+    t.permissionResult = 'denied';
+  });
+  await runner.fixAndRetry('permission_needed');
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'off', reason: 'permission_needed' });
+
+  transport.permissionResult = 'blocked';
+  await runner.fixAndRetry('permission_needed');
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'off', reason: 'permission_blocked' });
+
+  transport.preflightResult = 'ok';
+  await runner.fixAndRetry('permission_blocked');
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'waiting' });
+  transport.preflightResult = 'permission_needed';
+  runner.retry();
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'off', reason: 'permission_needed' });
+});
+
+test('stop then start inside one scan window does not cancel the new scan', async () => {
+  const { transport, runner } = setup((t) => {
+    t.globalScan = true;
+  });
+  runner.start();
+  await flush();
+  runner.stop();
+  await flush();
+  runner.start();
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'searching' });
+  expect(transport.activeScan).not.toBeNull();
+  transport.activeScan?.({ id: 'dev-1', name: 'IF_B2A' });
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'waiting' });
+});
+
+test('begin stops the old scan before it waits for the old connection to close', async () => {
+  let release: () => void = () => undefined;
+  const { transport, runner } = await startConnected((t) => {
+    t.scanResult = null;
+  });
+  transport.scanResult = { id: 'dev-1', name: 'IF_B2A' };
+  runner.retry();
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'waiting' });
+  // Remote disconnect: the runner searches again while the transport still holds the old connection.
+  transport.scanGate = new Promise<void>(() => undefined);
+  transport.disconnectGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  transport.fireDisconnect();
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'searching' });
+  const stopsBefore = transport.count('stopScan');
+  runner.retry();
+  expect(transport.count('stopScan')).toBe(stopsBefore + 1);
+  release();
+  await flush();
+});
+
+test('a scan that fails to start re-checks Bluetooth instead of counting windows', async () => {
+  const { transport, runner } = setup((t) => {
+    t.scanFailures = 1;
+  });
+  runner.start();
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'waiting' });
+  expect(transport.count('preflight')).toBe(2);
+});
+
+test('Bluetooth turned off mid-run shows Bluetooth is off, not not_found', async () => {
+  const { transport, runner } = setup((t) => {
+    t.scanFailures = 1;
+  });
+  const original = transport.preflight.bind(transport);
+  let calls = 0;
+  transport.preflight = async () => {
+    calls += 1;
+    await original();
+    return calls === 1 ? 'ok' : 'bluetooth_off';
+  };
+  runner.start();
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'off', reason: 'bluetooth_off' });
+});
+
+test('a scan that always fails ends in not_found instead of looping forever', async () => {
+  const { transport, runner } = setup((t) => {
+    t.scanFailures = 1_000;
+  });
+  runner.start();
+  await flush();
+  expect(runner.getState()).toEqual({ kind: 'error', error: 'not_found' });
+  expect(transport.count('scan')).toBe(MAX_SCAN_WINDOWS);
 });

@@ -14,7 +14,7 @@ export interface ScaleTransport {
   requestPermissions(): Promise<PermissionResult>;
   enableBluetooth(): Promise<boolean>;
   openSettings(): Promise<void>;
-  /** Resolves with the first match (scan stopped) or null on timeout. Rejects never. */
+  /** Resolves with the first match (scan stopped) or null on timeout or when stopScan() cancels it. Rejects when the scan cannot start. */
   scan(match: (p: ScalePeripheral) => boolean, timeoutMs: number): Promise<ScalePeripheral | null>;
   stopScan(): Promise<void>;
   /** Connects, discovers services, enables notifications. Resolves false on failure or timeout. */

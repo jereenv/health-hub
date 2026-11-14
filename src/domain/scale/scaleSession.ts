@@ -45,6 +45,7 @@ export type ScaleEvent =
   | { type: 'preflight'; result: 'ok' | OffReason }
   | { type: 'found' }
   | { type: 'scanTimedOut' }
+  | { type: 'scanFailed' }
   | { type: 'connected' }
   | { type: 'connectFailed' }
   | { type: 'disconnected' }
@@ -146,10 +147,15 @@ function onDisconnected(s: ScaleSession): Step {
   return withUi(s, { kind: 'error', error: 'connection_lost' });
 }
 
-function onScanTimedOut(s: ScaleSession): Step {
+/**
+ * A window ended (`scanTimedOut`) or the scan could not start (`scanFailed`). Both use up a window,
+ * so a scan that never starts still ends in `not_found`; a failed start first re-checks Bluetooth
+ * and permissions, so the card can say why instead of "Can't find the scale".
+ */
+function onScanEnded(s: ScaleSession, nextEffect: ScaleEffect): Step {
   if (s.ui.kind !== 'searching') return stay(s);
   if (s.scanWindows + 1 < MAX_SCAN_WINDOWS) {
-    return { session: { ...s, scanWindows: s.scanWindows + 1 }, effects: [{ type: 'scan' }] };
+    return { session: { ...s, scanWindows: s.scanWindows + 1 }, effects: [nextEffect] };
   }
   return withUi({ ...s, scanWindows: s.scanWindows + 1 }, { kind: 'error', error: 'not_found' });
 }
@@ -182,7 +188,9 @@ export function reduceScaleSession(s: ScaleSession, e: ScaleEvent): Step {
       if (s.ui.kind !== 'searching') return stay(s);
       return withUi({ ...s, scanWindows: 0 }, { kind: 'connecting' }, [{ type: 'connect' }]);
     case 'scanTimedOut':
-      return onScanTimedOut(s);
+      return onScanEnded(s, { type: 'scan' });
+    case 'scanFailed':
+      return onScanEnded(s, { type: 'preflight' });
     case 'connected':
       if (s.ui.kind !== 'connecting') return stay(s);
       return withUi(s, { kind: 'waiting' }, [{ type: 'handshake' }]);

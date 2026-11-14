@@ -1,5 +1,5 @@
 import { Linking, PermissionsAndroid, Platform } from 'react-native';
-import BleManager, { BleState } from 'react-native-ble-manager';
+import BleManager, { BleScanMode, BleState } from 'react-native-ble-manager';
 import { NOTIFY_CHARACTERISTIC, SERVICE_UUID, WRITE_CHARACTERISTIC } from '@/domain/scale/protocol';
 import type { PermissionResult, ScalePeripheral, ScaleTransport } from './ScaleTransport';
 
@@ -19,6 +19,7 @@ function isNotifyCharacteristic(uuid: string): boolean {
 export function createExpoBleScaleTransport(): ScaleTransport {
   let starting: Promise<void> | null = null;
   let connectedId: string | null = null;
+  let cancelActiveScan: (() => void) | null = null;
 
   function ensureStarted(): Promise<void> {
     starting ??= BleManager.start({ showAlert: false }).catch((error: unknown) => {
@@ -61,39 +62,59 @@ export function createExpoBleScaleTransport(): ScaleTransport {
     },
 
     scan(match, timeoutMs) {
-      return new Promise<ScalePeripheral | null>((resolve) => {
+      // The library has one global scan, so an older window must never stop a newer one.
+      const previous = cancelActiveScan;
+      cancelActiveScan = null;
+      previous?.();
+
+      return new Promise<ScalePeripheral | null>((resolve, reject) => {
         let settled = false;
         let subscription: { remove(): void } | null = null;
-        const finish = (found: ScalePeripheral | null) => {
+        const cancel = () => settle(null);
+        const settle = (found: ScalePeripheral | null, error?: unknown) => {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
           subscription?.remove();
-          BleManager.stopScan().catch(() => undefined);
-          resolve(found);
+          if (cancelActiveScan === cancel) {
+            cancelActiveScan = null;
+            BleManager.stopScan().catch(() => undefined);
+          }
+          if (error === undefined) resolve(found);
+          else reject(error);
         };
-        const timer = setTimeout(() => finish(null), timeoutMs);
+        const timer = setTimeout(cancel, timeoutMs);
+        cancelActiveScan = cancel;
         subscription = BleManager.onDiscoverPeripheral((peripheral) => {
           const candidate = {
             id: peripheral.id,
             name: peripheral.name ?? peripheral.advertising?.localName ?? null,
           };
-          if (match(candidate)) finish(candidate);
+          if (match(candidate)) settle(candidate);
         });
         ensureStarted()
-          .then(() =>
-            BleManager.scan({ serviceUUIDs: [SERVICE_UUID], seconds: 0, allowDuplicates: false }),
-          )
+          .then(() => {
+            // Cancelled while starting: do not begin a scan nobody is waiting for.
+            if (settled) return;
+            return BleManager.scan({
+              serviceUUIDs: [SERVICE_UUID],
+              seconds: 0,
+              allowDuplicates: false,
+              scanMode: BleScanMode.LowLatency,
+            });
+          })
           .then(() => {
             // The window may have ended while the scan was starting.
-            if (settled) return BleManager.stopScan();
+            if (settled && cancelActiveScan === null) return BleManager.stopScan();
           })
-          .catch(() => finish(null));
+          // A scan that cannot start (Bluetooth off, scanning too often) is a failure, not "not found".
+          .catch((error: unknown) => settle(null, error ?? new Error('scan failed')));
       });
     },
 
     async stopScan() {
-      await BleManager.stopScan().catch(() => undefined);
+      if (cancelActiveScan !== null) cancelActiveScan();
+      else await BleManager.stopScan().catch(() => undefined);
     },
 
     async connect(peripheralId, timeoutMs) {
@@ -142,7 +163,10 @@ export function createExpoBleScaleTransport(): ScaleTransport {
 
     onDisconnected(listener) {
       const subscription = BleManager.onDisconnectPeripheral((event) => {
-        if (event.peripheral === connectedId) listener();
+        if (event.peripheral !== connectedId) return;
+        // The scale dropped the link itself: forget it so a late write or disconnect does not use it.
+        connectedId = null;
+        listener();
       });
       return () => subscription.remove();
     },

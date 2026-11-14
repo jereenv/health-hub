@@ -63,6 +63,8 @@ export function createScaleRunner(deps: ScaleRunnerDeps): ScaleRunner {
   let session: ScaleSession = INITIAL_SESSION;
   let runId = 0;
   let peripheralId: string | null = null;
+  /** Set when the permission request answered "Don't ask again"; Android then shows no dialog. */
+  let permissionBlocked = false;
   let releaseConnection: () => void = () => undefined;
 
   function setSession(next: ScaleSession): void {
@@ -160,6 +162,13 @@ export function createScaleRunner(deps: ScaleRunnerDeps): ScaleRunner {
     dispatch(id, { type: ok ? 'connected' : 'connectFailed' });
   }
 
+  /** The platform cannot tell "never asked" from "never ask again", so the runner remembers the answer. */
+  async function preflight(): Promise<'ok' | OffReason> {
+    const result = await transport.preflight();
+    if (result !== 'permission_needed') permissionBlocked = false;
+    return result === 'permission_needed' && permissionBlocked ? 'permission_blocked' : result;
+  }
+
   async function save(id: number, effect: Extract<ScaleEffect, { type: 'save' }>): Promise<void> {
     const { reading } = effect;
     let outcome: 'saved' | 'duplicate' | 'failed';
@@ -182,7 +191,7 @@ export function createScaleRunner(deps: ScaleRunnerDeps): ScaleRunner {
     try {
       switch (effect.type) {
         case 'preflight':
-          return dispatch(id, { type: 'preflight', result: await transport.preflight() });
+          return dispatch(id, { type: 'preflight', result: await preflight() });
         case 'scan':
           return await scan(id);
         case 'connect':
@@ -208,7 +217,7 @@ export function createScaleRunner(deps: ScaleRunnerDeps): ScaleRunner {
       // The runner never throws: a failure shows up as the matching timeout or disconnect event.
       if (effect.type === 'preflight') dispatch(id, { type: 'preflight', result: 'bluetooth_off' });
       if (effect.type === 'scan' || effect.type === 'reconnect')
-        dispatch(id, { type: 'scanTimedOut' });
+        dispatch(id, { type: 'scanFailed' });
       if (effect.type === 'connect') dispatch(id, { type: 'connectFailed' });
     }
   }
@@ -217,8 +226,9 @@ export function createScaleRunner(deps: ScaleRunnerDeps): ScaleRunner {
   function begin(event: ScaleEvent): void {
     const wasSearching = session.ui.kind === 'searching';
     runId += 1;
-    const stale = closeConnection().then(() => (wasSearching ? transport.stopScan() : undefined));
-    void stale.catch(() => undefined);
+    // Stop the old scan first and without waiting: a late stopScan could cancel the new run's scan.
+    if (wasSearching) void transport.stopScan().catch(() => undefined);
+    void closeConnection().catch(() => undefined);
     peripheralId = null;
     dispatch(runId, event);
   }
@@ -232,8 +242,9 @@ export function createScaleRunner(deps: ScaleRunnerDeps): ScaleRunner {
     },
     async fixAndRetry(reason) {
       try {
-        if (reason === 'permission_needed') await transport.requestPermissions();
-        else if (reason === 'permission_blocked') await transport.openSettings();
+        if (reason === 'permission_needed') {
+          permissionBlocked = (await transport.requestPermissions()) === 'blocked';
+        } else if (reason === 'permission_blocked') await transport.openSettings();
         else if (reason === 'bluetooth_off') await transport.enableBluetooth();
       } catch {
         // Whatever went wrong, the preflight below reports the real state.

@@ -313,3 +313,22 @@ describe('disconnects and background', () => {
     });
   });
 });
+
+describe('a scan that fails to start', () => {
+  const searching: ScaleEvent[] = [{ type: 'foreground' }, { type: 'preflight', result: 'ok' }];
+
+  test('re-runs the preflight instead of scanning again', () => {
+    const { session, effects } = run([...searching, { type: 'scanFailed' }]);
+    expect(session.ui).toEqual({ kind: 'searching' });
+    expect(effects.slice(-1)).toEqual([{ type: 'preflight' }]);
+    expect(effects.filter((effect) => effect.type === 'scan')).toHaveLength(1);
+  });
+
+  test('gives up with not_found after MAX_SCAN_WINDOWS failures', () => {
+    const rounds: ScaleEvent[] = Array.from({ length: MAX_SCAN_WINDOWS }, (): ScaleEvent => ({
+      type: 'scanFailed',
+    }));
+    const { session } = run([...searching, ...rounds]);
+    expect(session.ui).toEqual({ kind: 'error', error: 'not_found' });
+  });
+});
