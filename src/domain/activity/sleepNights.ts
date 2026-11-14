@@ -27,7 +27,25 @@ const MINUTES_PER_DAY = 1440;
 const BEDTIME_ORIGIN_MIN = 18 * 60;
 const MIN_NIGHTS = 3;
 
-/** One night per wake date, ascending. Sessions ending the same day (naps included) are summed. */
+function durationMs(session: SleepSessionRow): number {
+  return Date.parse(session.endAt) - Date.parse(session.startAt);
+}
+
+/** The night itself: the longest session, the earlier-starting one on a tie. */
+function longestSession(group: readonly SleepSessionRow[]): SleepSessionRow {
+  return group.reduce((best, s) => {
+    const longer = durationMs(s) - durationMs(best);
+    return longer > 0 || (longer === 0 && Date.parse(s.startAt) < Date.parse(best.startAt))
+      ? s
+      : best;
+  });
+}
+
+/**
+ * One night per wake date, ascending. Sessions ending the same day (naps included) are summed for
+ * asleep time and stages; bedtime and wake time come from the longest session, so a nap does not
+ * move them.
+ */
 export function buildSleepNights(sessions: readonly SleepSessionRow[]): SleepNight[] {
   const groups = new Map<DateKey, SleepSessionRow[]>();
   for (const session of sessions) {
@@ -38,6 +56,7 @@ export function buildSleepNights(sessions: readonly SleepSessionRow[]): SleepNig
 
   return [...groups.keys()].sort().map((date) => {
     const group = groups.get(date)!;
+    const main = longestSession(group);
     const staged = group.filter((s) => s.hasStages);
     const stageSum = (pick: (s: SleepSessionRow) => number | null): number | null =>
       staged.length === 0 ? null : staged.reduce((sum, s) => sum + (pick(s) ?? 0), 0);
@@ -48,14 +67,8 @@ export function buildSleepNights(sessions: readonly SleepSessionRow[]): SleepNig
       lightS: stageSum((s) => s.lightS),
       deepS: stageSum((s) => s.deepS),
       remS: stageSum((s) => s.remS),
-      bedtime: group.reduce(
-        (a, s) => (Date.parse(s.startAt) < Date.parse(a) ? s.startAt : a),
-        group[0]!.startAt,
-      ),
-      wakeTime: group.reduce(
-        (a, s) => (Date.parse(s.endAt) > Date.parse(a) ? s.endAt : a),
-        group[0]!.endAt,
-      ),
+      bedtime: main.startAt,
+      wakeTime: main.endAt,
     };
   });
 }

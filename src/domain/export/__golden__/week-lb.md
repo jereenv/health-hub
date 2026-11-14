@@ -48,7 +48,7 @@
 
 ### Sleep
 - Sleep: mean 6h 57m per night over 5 nights with data (2 days without data skipped); previous period 7h (3 nights); change −3 min.
-- Typical bedtime 23:21, wake 07:45, bedtime spread ±31 min.
+- Typical bedtime 23:21, wake 06:21, bedtime spread ±31 min.
 - Average stages per night: light 3h 40m, deep 1h 25m, REM 1h 25m (2 nights with stage data).
 
 ### Heart rate

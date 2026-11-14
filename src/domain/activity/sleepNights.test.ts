@@ -90,17 +90,38 @@ test('a session without stages keeps stage columns null, and mixing sums only st
   expect(mixed[0]).toMatchObject({ lightS: 100, deepS: 200, remS: 300, asleepS: 50000 });
 });
 
-test('nights are ascending and bedtime/wake come from the earliest start and latest end', () => {
-  const early = local(11, 8, 22, 30);
-  const late = local(11, 9, 7, 15);
+test('nights are ascending and bedtime/wake come from the longest session of the date', () => {
+  const longStart = local(11, 8, 22, 30);
+  const longEnd = local(11, 9, 3, 0);
   const nights = buildSleepNights([
     session('2026-11-10', local(11, 9, 23, 0), local(11, 10, 6, 0)),
-    session('2026-11-09', local(11, 9, 4, 0), late),
-    session('2026-11-09', early, local(11, 9, 3, 0)),
+    session('2026-11-09', local(11, 9, 4, 0), local(11, 9, 7, 15)),
+    session('2026-11-09', longStart, longEnd),
   ]);
   expect(nights.map((n) => n.date)).toEqual(['2026-11-09', '2026-11-10']);
-  expect(nights[0]!.bedtime).toBe(early);
-  expect(nights[0]!.wakeTime).toBe(late);
+  expect(nights[0]!.bedtime).toBe(longStart);
+  expect(nights[0]!.wakeTime).toBe(longEnd);
+});
+
+test('a nap on the same date adds to asleep time but does not move bedtime or wake', () => {
+  const bed = local(11, 9, 22, 45);
+  const wake = local(11, 10, 6, 30);
+  const [night] = buildSleepNights([
+    session('2026-11-10', local(11, 10, 13, 0), local(11, 10, 13, 30), { asleepS: 1800 }),
+    session('2026-11-10', bed, wake, { asleepS: 27000 }),
+  ]);
+  expect(night!.bedtime).toBe(bed);
+  expect(night!.wakeTime).toBe(wake);
+  expect(night!.asleepS).toBe(28800);
+});
+
+test('equally long sessions: the earlier-starting one is the night', () => {
+  const first = local(11, 9, 22, 0);
+  const [night] = buildSleepNights([
+    session('2026-11-10', local(11, 10, 14, 0), local(11, 10, 18, 0)),
+    session('2026-11-10', first, local(11, 10, 2, 0)),
+  ]);
+  expect(night!.bedtime).toBe(first);
 });
 
 test('no sessions give no nights', () => {
