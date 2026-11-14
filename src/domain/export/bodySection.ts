@@ -63,7 +63,7 @@ export function originText(origin: Origin): string {
   }
 }
 
-function valueText(metric: MetricId, value: number, unit: WeightUnit): string {
+export function valueText(metric: MetricId, value: number, unit: WeightUnit): string {
   const shown = formatMetricValue(metric, value, unit);
   return shown.unit === '' ? shown.value : `${shown.value} ${shown.unit}`;
 }
