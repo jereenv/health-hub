@@ -27,24 +27,46 @@ const MINUTES_PER_DAY = 1440;
 const BEDTIME_ORIGIN_MIN = 18 * 60;
 const MIN_NIGHTS = 3;
 
-function durationMs(session: SleepSessionRow): number {
-  return Date.parse(session.endAt) - Date.parse(session.startAt);
+/** Sessions closer together than this belong to one night; a longer gap is a nap. */
+const MAX_BLOCK_GAP_MS = 3 * 60 * 60 * 1000;
+
+interface SleepBlock {
+  startMs: number;
+  endMs: number;
+  startAt: string;
+  endAt: string;
 }
 
-/** The night itself: the longest session, the earlier-starting one on a tie. */
-function longestSession(group: readonly SleepSessionRow[]): SleepSessionRow {
-  return group.reduce((best, s) => {
-    const longer = durationMs(s) - durationMs(best);
-    return longer > 0 || (longer === 0 && Date.parse(s.startAt) < Date.parse(best.startAt))
-      ? s
-      : best;
-  });
+/**
+ * The night itself: sessions are chained into blocks (a session joins the current block when it
+ * starts less than 3 hours after the block's latest end) and the block with the longest span wins,
+ * the earlier one on a tie. A night split by a short wake is one block; a daytime nap is another.
+ */
+function mainBlock(group: readonly SleepSessionRow[]): SleepBlock {
+  const sorted = [...group].sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+  const blocks: SleepBlock[] = [];
+  for (const session of sorted) {
+    const startMs = Date.parse(session.startAt);
+    const endMs = Date.parse(session.endAt);
+    const current = blocks[blocks.length - 1];
+    if (current && startMs - current.endMs < MAX_BLOCK_GAP_MS) {
+      if (endMs > current.endMs) {
+        current.endMs = endMs;
+        current.endAt = session.endAt;
+      }
+    } else {
+      blocks.push({ startMs, endMs, startAt: session.startAt, endAt: session.endAt });
+    }
+  }
+  return blocks.reduce((best, block) =>
+    block.endMs - block.startMs > best.endMs - best.startMs ? block : best,
+  );
 }
 
 /**
  * One night per wake date, ascending. Sessions ending the same day (naps included) are summed for
- * asleep time and stages; bedtime and wake time come from the longest session, so a nap does not
- * move them.
+ * asleep time and stages; bedtime and wake time come from the main block (see `mainBlock`), so a
+ * nap does not move them and a split night keeps its real wake.
  */
 export function buildSleepNights(sessions: readonly SleepSessionRow[]): SleepNight[] {
   const groups = new Map<DateKey, SleepSessionRow[]>();
@@ -56,7 +78,7 @@ export function buildSleepNights(sessions: readonly SleepSessionRow[]): SleepNig
 
   return [...groups.keys()].sort().map((date) => {
     const group = groups.get(date)!;
-    const main = longestSession(group);
+    const main = mainBlock(group);
     const staged = group.filter((s) => s.hasStages);
     const stageSum = (pick: (s: SleepSessionRow) => number | null): number | null =>
       staged.length === 0 ? null : staged.reduce((sum, s) => sum + (pick(s) ?? 0), 0);
