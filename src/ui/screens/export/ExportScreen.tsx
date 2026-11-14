@@ -37,6 +37,7 @@ import { ShareBar } from './ShareBar';
 import type { ShareNotice } from './ShareBar';
 import { SHARE_BRIEFING_AS } from './shareMode';
 import { StarterInput } from './StarterInput';
+import { useSweepOnFocus } from './useSweepOnFocus';
 import { WORKOUT_CHOICES, WorkoutSheet } from './WorkoutSheet';
 
 const PREVIEW_LINES = 12;
@@ -72,10 +73,7 @@ export function ExportScreen(): React.JSX.Element {
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const today = localDateKey(new Date());
 
-  // Ruling 11: files from an earlier share are swept when the screen opens.
-  useEffect(() => {
-    exportDelivery.sweep().catch(() => undefined);
-  }, [exportDelivery]);
+  useSweepOnFocus(exportDelivery.sweep, () => busy.current);
   useEffect(
     () => () => {
       if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
