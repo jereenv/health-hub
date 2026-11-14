@@ -20,11 +20,9 @@
 ## Detail
 
 ### Every set
-
 - Bench Press: 80×5, 85×5, 90×3 (PR)
 - Pull-up: BW×8, BW×8
 
 ### Last time
-
 - Bench Press: last time Mon 2 Nov, top set 85×3, best estimated 1RM 93.5 kg; today best estimated 1RM 99.2 kg (+5.7 kg vs last time)
 - Pull-up: first time logged

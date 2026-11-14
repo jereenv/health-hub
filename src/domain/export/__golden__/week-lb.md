@@ -23,7 +23,6 @@
 ## Summary
 
 ### Body
-
 - Weight (Measured, scale): 184.3 lb mean of 5 weigh-in days; previous period 186.7 lb (4 days); change −2.4 lb.
 - Body fat (Estimated, MovingLife's own figure): 23.6 % mean of 5 weigh-in days; previous period 24.7 % (4 days); change −1.1 pts.
 - BMI (Exact, Health Hub formula v1): 27.3 mean of 5 weigh-in days; previous period 27.7 (4 days); change −0.4.
@@ -38,73 +37,62 @@
 - Watch body-fat checks (Galaxy Watch, separate from the scale; not blended): 3 checks on 2 days, mean of the checks 26.2 %.
 
 ### Training
-
 - Workouts logged: 3 (previous period 1); volume 8.9k lb (previous 2.3k lb).
 - Adherence: 3 of 5 scheduled sessions done; 1 missed; 1 scheduled today, not yet done. Previous period: 1 of 2.
 - Personal records this period: Bench Press weight 198.4 lb (previous best 187.4 lb) on Sat 7 Nov.
 - Best estimated 1-rep max (Epley, sets of 1–12 reps) this period vs all earlier: Barbell Row 195.5 lb (first time logged); Bench Press 218.6 lb (no change); Squat 257.2 lb (first time logged).
 
 ### Activity
-
 - Steps: mean 8,000 per day over 5 completed days with data (1 day without data skipped); total 40,000; previous period 6,833 per day (6 days); change +1,167.
 - Distance: mean 4.3 mi per day over 3 days with data (recorded on 3 of 6 completed days); total 13.0 mi; previous period 3.4 mi per day (2 days); change +0.9 mi.
 
 ### Sleep
-
 - Sleep: mean 6h 57m per night over 5 nights with data (2 days without data skipped); previous period 7h (3 nights); change −3 min.
 - Typical bedtime 23:21, wake 07:45, bedtime spread ±31 min.
 - Average stages per night: light 3h 40m, deep 1h 25m, REM 1h 25m (2 nights with stage data).
 
 ### Heart rate
-
 - Heart rate (daily min / avg / max only; no resting heart rate is available): lowest 50 bpm, highest 150 bpm, mean of daily averages 68 bpm over 4 completed days with data (2 days without data skipped); previous period mean of daily averages 69 bpm (2 days; lowest 52, highest 138).
 
 ## Detail
 
 ### Body — daily (each day's first weigh-in)
-
-| Date        | Weight (lb) | Body fat (%) | Fat mass (lb) | Lean mass (lb) | Body-fat source |
-| ----------- | ----------- | ------------ | ------------- | -------------- | --------------- |
-| Fri 6 Nov   | 185.2       | 24.0         | 44.4          | 140.7          | MovingLife      |
-| Sat 7 Nov   | –           | –            | –             | –              | –               |
-| Sun 8 Nov   | 184.7       | 23.8         | 44.0          | 140.8          | MovingLife      |
-| Mon 9 Nov   | 184.3       | 23.6         | 43.5          | 140.8          | MovingLife      |
-| Tue 10 Nov  | 183.9       | 23.4         | 43.0          | 140.8          | MovingLife      |
-| Wed 11 Nov  | –           | –            | –             | –              | –               |
-| Thu 12 Nov* | 183.4       | 23.2         | 42.6          | 140.9          | MovingLife      |
+| Date | Weight (lb) | Body fat (%) | Fat mass (lb) | Lean mass (lb) | Body-fat source |
+|---|---|---|---|---|---|
+| Fri 6 Nov | 185.2 | 24.0 | 44.4 | 140.7 | MovingLife |
+| Sat 7 Nov | – | – | – | – | – |
+| Sun 8 Nov | 184.7 | 23.8 | 44.0 | 140.8 | MovingLife |
+| Mon 9 Nov | 184.3 | 23.6 | 43.5 | 140.8 | MovingLife |
+| Tue 10 Nov | 183.9 | 23.4 | 43.0 | 140.8 | MovingLife |
+| Wed 11 Nov | – | – | – | – | – |
+| Thu 12 Nov* | 183.4 | 23.2 | 42.6 | 140.9 | MovingLife |
 
 ### Watch body-fat checks (Galaxy Watch; separate from the scale)
-
-| Date       | Body fat (%) |
-| ---------- | ------------ |
-| Sun 8 Nov  | 26.3         |
-| Wed 11 Nov | 26.0         |
+| Date | Body fat (%) |
+|---|---|
+| Sun 8 Nov | 26.3 |
+| Wed 11 Nov | 26.0 |
 
 ### Workouts
-
 #### Sat 7 Nov · Upper Strength · 58 min · volume 2.4k lb
-
 - Bench Press: 176.4×5, 187.4×5, 198.4×3 (PR)
 - Pull-up: BW×8, BW×8
 
 #### Mon 9 Nov · Lower Strength · volume 2.9k lb
-
 - Squat: 220.5×5, 220.5×5, 231.5×3
 
 #### Wed 11 Nov · Pull · volume 3.5k lb
-
 - Barbell Row: 154.3×8, 154.3×8, 154.3×7
 
 ### Activity, sleep and heart rate — daily
+| Date | Steps | Distance (mi) | Sleep (night ending that day) | Heart rate min / avg / max |
+|---|---|---|---|---|
+| Fri 6 Nov | 8,000 | 3.7 | – | 52 / 68 / 140 |
+| Sat 7 Nov | 6,000 | – | 6h 30m | – |
+| Sun 8 Nov | – | – | 7h | 50 / 66 / 120 |
+| Mon 9 Nov | 10,000 | 5.0 | – | – |
+| Tue 10 Nov | 7,000 | – | 8h | 54 / 70 / 150 |
+| Wed 11 Nov | 9,000 | 4.3 | 6h | 51 / 67 / 130 |
+| Thu 12 Nov* | 2,500 | – | 7h 15m | 55 / 72 / 160 |
 
-| Date        | Steps  | Distance (mi) | Sleep (night ending that day) | Heart rate min / avg / max |
-| ----------- | ------ | ------------- | ----------------------------- | -------------------------- |
-| Fri 6 Nov   | 8,000  | 3.7           | –                             | 52 / 68 / 140              |
-| Sat 7 Nov   | 6,000  | –             | 6h 30m                        | –                          |
-| Sun 8 Nov   | –      | –             | 7h                            | 50 / 66 / 120              |
-| Mon 9 Nov   | 10,000 | 5.0           | –                             | –                          |
-| Tue 10 Nov  | 7,000  | –             | 8h                            | 54 / 70 / 150              |
-| Wed 11 Nov  | 9,000  | 4.3           | 6h                            | 51 / 67 / 130              |
-| Thu 12 Nov* | 2,500  | –             | 7h 15m                        | 55 / 72 / 160              |
-
-- today: steps, distance and heart rate so far.
+* today: steps, distance and heart rate so far.

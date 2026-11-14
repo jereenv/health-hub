@@ -23,7 +23,6 @@
 ## Summary
 
 ### Body
-
 - Weight (Measured, scale): 84.7 kg mean of 12 weigh-in days; no weigh-ins in the previous period.
 - Body fat (Estimated, MovingLife's own figure): 24.7 % mean of 12 weigh-in days; no weigh-ins in the previous period.
 - BMI (Exact, Health Hub formula v1): 27.6 mean of 12 weigh-in days; no weigh-ins in the previous period.
@@ -38,82 +37,75 @@
 - Watch body-fat checks (Galaxy Watch, separate from the scale; not blended): 3 checks on 2 days, mean of the checks 26.2 %.
 
 ### Training
-
 - Workouts logged: 5 (previous period 0); volume 5.9 t (previous none).
 - Adherence: 4 of 7 scheduled sessions done; 2 missed; 1 scheduled today, not yet done.
 - Personal records this period: Bench Press weight 90 kg (previous best 85 kg) on Sat 7 Nov.
 - Best estimated 1-rep max (Epley, sets of 1–12 reps) this period vs all earlier: Barbell Row 88.7 kg (first time logged); Bench Press 99.2 kg (first time logged); Squat 116.7 kg (first time logged).
 
 ### Activity
-
 - Steps: mean 7,364 per day over 11 completed days with data (18 days without data skipped); total 81,000; no data in the previous period.
 - Distance: mean 6.4 km per day over 5 days with data (recorded on 5 of 29 completed days); total 32.0 km; no data in the previous period.
 
 ### Sleep
-
 - Sleep: mean 6h 58m per night over 8 nights with data (22 days without data skipped); no data in the previous period.
 - Typical bedtime 23:13, wake 07:06, bedtime spread ±26 min.
 - Average stages per night: light 3h 40m, deep 1h 25m, REM 1h 25m (2 nights with stage data).
 
 ### Heart rate
-
 - Heart rate (daily min / avg / max only; no resting heart rate is available): lowest 50 bpm, highest 150 bpm, mean of daily averages 68 bpm over 6 completed days with data (23 days without data skipped); no data in the previous period.
 
 ## Detail
 
 ### Body — daily (each day's first weigh-in)
-
-| Date        | Weight (kg) | Body fat (%) | Fat mass (kg) | Lean mass (kg) | Body-fat source |
-| ----------- | ----------- | ------------ | ------------- | -------------- | --------------- |
-| Wed 14 Oct  | –           | –            | –             | –              | –               |
-| Thu 15 Oct  | –           | –            | –             | –              | –               |
-| Fri 16 Oct  | 87.0        | 27.0         | 23.5          | 63.5           | MovingLife      |
-| Sat 17 Oct  | –           | –            | –             | –              | –               |
-| Sun 18 Oct  | –           | –            | –             | –              | –               |
-| Mon 19 Oct  | –           | –            | –             | –              | –               |
-| Tue 20 Oct  | 86.4        | 26.4         | 22.8          | 63.6           | MovingLife      |
-| Wed 21 Oct  | –           | –            | –             | –              | –               |
-| Thu 22 Oct  | –           | –            | –             | –              | –               |
-| Fri 23 Oct  | –           | –            | –             | –              | –               |
-| Sat 24 Oct  | –           | –            | –             | –              | –               |
-| Sun 25 Oct  | 85.8        | 25.8         | 22.1          | 63.7           | MovingLife      |
-| Mon 26 Oct  | –           | –            | –             | –              | –               |
-| Tue 27 Oct  | –           | –            | –             | –              | –               |
-| Wed 28 Oct  | –           | –            | –             | –              | –               |
-| Thu 29 Oct  | –           | –            | –             | –              | –               |
-| Fri 30 Oct  | 85.0        | 25.0         | 21.3          | 63.8           | MovingLife      |
-| Sat 31 Oct  | –           | –            | –             | –              | –               |
-| Sun 1 Nov   | 84.8        | 24.8         | 21.0          | 63.8           | MovingLife      |
-| Mon 2 Nov   | –           | –            | –             | –              | –               |
-| Tue 3 Nov   | 84.6        | 24.6         | 20.8          | 63.8           | MovingLife      |
-| Wed 4 Nov   | 84.4        | 24.4         | 20.6          | 63.8           | MovingLife      |
-| Thu 5 Nov   | –           | –            | –             | –              | –               |
-| Fri 6 Nov   | 84.0        | 24.0         | 20.2          | 63.8           | MovingLife      |
-| Sat 7 Nov   | –           | –            | –             | –              | –               |
-| Sun 8 Nov   | 83.8        | 23.8         | 19.9          | 63.9           | MovingLife      |
-| Mon 9 Nov   | 83.6        | 23.6         | 19.7          | 63.9           | MovingLife      |
-| Tue 10 Nov  | 83.4        | 23.4         | 19.5          | 63.9           | MovingLife      |
-| Wed 11 Nov  | –           | –            | –             | –              | –               |
-| Thu 12 Nov* | 83.2        | 23.2         | 19.3          | 63.9           | MovingLife      |
+| Date | Weight (kg) | Body fat (%) | Fat mass (kg) | Lean mass (kg) | Body-fat source |
+|---|---|---|---|---|---|
+| Wed 14 Oct | – | – | – | – | – |
+| Thu 15 Oct | – | – | – | – | – |
+| Fri 16 Oct | 87.0 | 27.0 | 23.5 | 63.5 | MovingLife |
+| Sat 17 Oct | – | – | – | – | – |
+| Sun 18 Oct | – | – | – | – | – |
+| Mon 19 Oct | – | – | – | – | – |
+| Tue 20 Oct | 86.4 | 26.4 | 22.8 | 63.6 | MovingLife |
+| Wed 21 Oct | – | – | – | – | – |
+| Thu 22 Oct | – | – | – | – | – |
+| Fri 23 Oct | – | – | – | – | – |
+| Sat 24 Oct | – | – | – | – | – |
+| Sun 25 Oct | 85.8 | 25.8 | 22.1 | 63.7 | MovingLife |
+| Mon 26 Oct | – | – | – | – | – |
+| Tue 27 Oct | – | – | – | – | – |
+| Wed 28 Oct | – | – | – | – | – |
+| Thu 29 Oct | – | – | – | – | – |
+| Fri 30 Oct | 85.0 | 25.0 | 21.3 | 63.8 | MovingLife |
+| Sat 31 Oct | – | – | – | – | – |
+| Sun 1 Nov | 84.8 | 24.8 | 21.0 | 63.8 | MovingLife |
+| Mon 2 Nov | – | – | – | – | – |
+| Tue 3 Nov | 84.6 | 24.6 | 20.8 | 63.8 | MovingLife |
+| Wed 4 Nov | 84.4 | 24.4 | 20.6 | 63.8 | MovingLife |
+| Thu 5 Nov | – | – | – | – | – |
+| Fri 6 Nov | 84.0 | 24.0 | 20.2 | 63.8 | MovingLife |
+| Sat 7 Nov | – | – | – | – | – |
+| Sun 8 Nov | 83.8 | 23.8 | 19.9 | 63.9 | MovingLife |
+| Mon 9 Nov | 83.6 | 23.6 | 19.7 | 63.9 | MovingLife |
+| Tue 10 Nov | 83.4 | 23.4 | 19.5 | 63.9 | MovingLife |
+| Wed 11 Nov | – | – | – | – | – |
+| Thu 12 Nov* | 83.2 | 23.2 | 19.3 | 63.9 | MovingLife |
 
 ### Watch body-fat checks (Galaxy Watch; separate from the scale)
+| Date | Body fat (%) |
+|---|---|
+| Sun 8 Nov | 26.3 |
+| Wed 11 Nov | 26.0 |
 
-| Date       | Body fat (%) |
-| ---------- | ------------ |
-| Sun 8 Nov  | 26.3         |
-| Wed 11 Nov | 26.0         |
-
-- today: the day is not over yet.
+* today: the day is not over yet.
 
 ### Workouts
-
-| Week of              | Sessions | Volume (kg) | Scheduled | Done |
-| -------------------- | -------- | ----------- | --------- | ---- |
-| 2026-10-12           | 0        | –           | –         | –    |
-| 2026-10-19           | 1        | 850         | –         | –    |
-| 2026-10-26           | 0        | –           | –         | –    |
-| 2026-11-02           | 2        | 2,150       | 3         | 2    |
-| 2026-11-09 (to date) | 2        | 2,925       | 4         | 2    |
+| Week of | Sessions | Volume (kg) | Scheduled | Done |
+|---|---|---|---|---|
+| 2026-10-12 | 0 | – | – | – |
+| 2026-10-19 | 1 | 850 | – | – |
+| 2026-10-26 | 0 | – | – | – |
+| 2026-11-02 | 2 | 2,150 | 3 | 2 |
+| 2026-11-09 (to date) | 2 | 2,925 | 4 | 2 |
 
 - Mon 19 Oct · Upper Strength · 850 kg
 - Mon 2 Nov · Upper Strength · 1.1 t
@@ -122,11 +114,10 @@
 - Wed 11 Nov · Pull · 1.6 t
 
 ### Activity, sleep and heart rate — weekly
-
-| Week of              | Steps/day | Distance/day (km) | Sleep/night | Heart rate avg |
-| -------------------- | --------- | ----------------- | ----------- | -------------- |
-| 2026-10-12           | –         | –                 | –           | –              |
-| 2026-10-19           | –         | –                 | –           | –              |
-| 2026-10-26           | 5,500     | 5.0               | 7h          | 69             |
-| 2026-11-02           | 7,333     | 6.0               | 6h 53m      | 67             |
-| 2026-11-09 (to date) | 8,667     | 7.5               | 7h 5m       | 69             |
+| Week of | Steps/day | Distance/day (km) | Sleep/night | Heart rate avg |
+|---|---|---|---|---|
+| 2026-10-12 | – | – | – | – |
+| 2026-10-19 | – | – | – | – |
+| 2026-10-26 | 5,500 | 5.0 | 7h | 69 |
+| 2026-11-02 | 7,333 | 6.0 | 6h 53m | 67 |
+| 2026-11-09 (to date) | 8,667 | 7.5 | 7h 5m | 69 |

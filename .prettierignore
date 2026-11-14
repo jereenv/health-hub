@@ -13,3 +13,4 @@ package-lock.json
 
 # Authored docs keep their hand-written formatting
 docs/
+src/domain/export/__golden__/

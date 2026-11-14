@@ -19,7 +19,6 @@
 ## Summary
 
 ### Body
-
 - Weight (Measured, scale): 83.5 kg mean of 2 weigh-in days; previous period 83.9 kg (2 days); change −0.4 kg.
 - Body fat (Estimated, MovingLife's own figure): 23.5 % mean of 2 weigh-in days; previous period 23.9 % (2 days); change −0.4 pts.
 - BMI (Exact, Health Hub formula v1): 27.3 mean of 2 weigh-in days; previous period 27.4 (2 days); change −0.1.
@@ -34,35 +33,30 @@
 - Watch body-fat checks (Galaxy Watch, separate from the scale; not blended): 1 check on 1 day, mean of the checks 26.0 %.
 
 ### Activity
-
 - Steps: mean 8,667 per day over 3 completed days with data; total 26,000; previous period 7,000 per day (2 days); change +1,667.
 - Distance: mean 7.5 km per day over 2 days with data (recorded on 2 of 3 completed days); total 15.0 km; previous period 6.0 km per day (1 day); change +1.5 km.
 
 ### Sleep
-
 - Sleep: mean 7h per night over 2 nights with data (1 day without data skipped); previous period 6h 45m (2 nights); change +15 min.
 - Average stages per night: light 3h 20m, deep 1h 20m, REM 1h 20m (1 night with stage data).
 
 ## Detail
 
 ### Body — daily (each day's first weigh-in)
-
-| Date       | Weight (kg) | Body fat (%) | Fat mass (kg) | Lean mass (kg) | Body-fat source |
-| ---------- | ----------- | ------------ | ------------- | -------------- | --------------- |
-| Mon 9 Nov  | 83.6        | 23.6         | 19.7          | 63.9           | MovingLife      |
-| Tue 10 Nov | 83.4        | 23.4         | 19.5          | 63.9           | MovingLife      |
-| Wed 11 Nov | –           | –            | –             | –              | –               |
+| Date | Weight (kg) | Body fat (%) | Fat mass (kg) | Lean mass (kg) | Body-fat source |
+|---|---|---|---|---|---|
+| Mon 9 Nov | 83.6 | 23.6 | 19.7 | 63.9 | MovingLife |
+| Tue 10 Nov | 83.4 | 23.4 | 19.5 | 63.9 | MovingLife |
+| Wed 11 Nov | – | – | – | – | – |
 
 ### Watch body-fat checks (Galaxy Watch; separate from the scale)
-
-| Date       | Body fat (%) |
-| ---------- | ------------ |
-| Wed 11 Nov | 26.0         |
+| Date | Body fat (%) |
+|---|---|
+| Wed 11 Nov | 26.0 |
 
 ### Activity and sleep — daily
-
-| Date       | Steps  | Distance (km) | Sleep (night ending that day) |
-| ---------- | ------ | ------------- | ----------------------------- |
-| Mon 9 Nov  | 10,000 | 8.0           | –                             |
-| Tue 10 Nov | 7,000  | –             | 8h                            |
-| Wed 11 Nov | 9,000  | 7.0           | 6h                            |
+| Date | Steps | Distance (km) | Sleep (night ending that day) |
+|---|---|---|---|
+| Mon 9 Nov | 10,000 | 8.0 | – |
+| Tue 10 Nov | 7,000 | – | 8h |
+| Wed 11 Nov | 9,000 | 7.0 | 6h |

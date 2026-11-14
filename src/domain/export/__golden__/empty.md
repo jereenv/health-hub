@@ -17,23 +17,18 @@
 ## Summary
 
 ### Body
-
 - No weigh-ins in this period.
 
 ### Training
-
 - No workouts logged in this period.
 - Adherence: no scheduled sessions are stored for this period.
 
 ### Activity
-
 - Steps: no data in this period.
 - Distance: no data in this period.
 
 ### Sleep
-
 - Sleep: no data in this period.
 
 ### Heart rate
-
 - Heart rate: no data in this period.
