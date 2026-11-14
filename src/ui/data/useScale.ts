@@ -18,7 +18,10 @@ export function useScale(): { state: ScaleState; actions: ScaleActions } {
   const state = useSyncExternalStore(scale.subscribe, scale.getState);
 
   useEffect(() => {
-    if (AppState.currentState === 'active') scale.start();
+    // In a release build JS can run before Android reports the activity as resumed, so the state
+    // may still be 'unknown'. The Today screen is mounting, so it is visible unless told otherwise.
+    const initial = AppState.currentState;
+    if (initial !== 'background' && initial !== 'inactive') scale.start();
     const subscription = AppState.addEventListener('change', (next) => {
       if (next === 'active') scale.start();
       else scale.stop();

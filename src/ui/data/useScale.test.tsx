@@ -60,6 +60,12 @@ test('does not start while the app is in the background', async () => {
   expect(mockRunner.start).not.toHaveBeenCalled();
 });
 
+test('starts on a cold start when the app state is not yet known', async () => {
+  setAppState('unknown');
+  await renderHook(() => useScale());
+  expect(mockRunner.start).toHaveBeenCalledTimes(1);
+});
+
 test('stops on unmount', async () => {
   const { unmount } = await renderHook(() => useScale());
   await unmount();
