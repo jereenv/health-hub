@@ -86,10 +86,10 @@ export function visibleChips(preset: PresetId): (SectionId | 'csv')[] {
 
 /**
  * Share and Copy need a briefing to send: at least one visible section on (the CSV chip alone
- * leaves the text empty), and a chosen workout for a single workout.
+ * leaves the text empty), and a chosen workout for a single workout (which is always included, so no chip is needed).
  */
 export function canShare(form: ExportForm): boolean {
-  if (form.preset === 'workout' && form.workoutId === null) return false;
+  if (form.preset === 'workout') return form.workoutId !== null;
   return visibleChips(form.preset).some((chip) => chip !== 'csv' && form.sections[chip]);
 }
 

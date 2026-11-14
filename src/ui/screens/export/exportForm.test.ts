@@ -89,7 +89,9 @@ test('canShare is false when every visible chip is off, and false for a single w
 test('turning off a chip that is hidden for the current preset does not affect canShare', () => {
   const form = allOff(switchTo(initialForm(7), 'workout'), ['workouts', 'activity', 'heartRate']);
   expect(canShare(form)).toBe(true);
-  expect(canShare(allOff(form, ['body', 'sleep']))).toBe(false);
+  // The workout itself is always in the briefing, so a chosen workout can be shared on its own.
+  expect(canShare(allOff(form, ['body', 'sleep']))).toBe(true);
+  expect(canShare(allOff(switchTo(initialForm(null), 'workout'), ['body', 'sleep']))).toBe(false);
 });
 
 test('toRequest passes the form through unchanged and drops csv for presets other than journey', () => {
