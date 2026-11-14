@@ -125,21 +125,33 @@ function oneRepMaxLine(
   best: ReadonlyMap<number, number>,
 ): string | null {
   const ids = new Set(inPeriod.flatMap((w) => w.exercises.map((e) => e.exerciseId)));
+  // Nothing can be "earlier" when the window starts on or before the first training day (always
+  // so for a journey), so no lift is compared and none is called new.
+  const firstTrainingDay = all.map((w) => localDateKey(w.performedAt)).sort()[0];
+  const hasBaseline = firstTrainingDay !== undefined && window.from > firstTrainingDay;
   const entries: { name: string; text: string }[] = [];
   for (const id of ids) {
     if ((best.get(id) ?? 0) === 0) continue;
     const sessions = exerciseSessions(all, id);
     const periodBest = bestE1rm(sessions.filter((s) => inWindow(s.date, window)));
-    if (periodBest === null) continue;
+    // A lift done bodyweight-only in the period has an estimate of 0; that says nothing.
+    if (periodBest === null || periodBest === 0) continue;
+    const name = names.get(id) ?? 'Exercise';
+    const shown = formatWeight(periodBest, unit);
     const earlierBest = bestE1rm(sessions.filter((s) => s.date < window.from));
     entries.push({
-      name: names.get(id) ?? 'Exercise',
-      text: `${names.get(id) ?? 'Exercise'} ${formatWeight(periodBest, unit)} (${oneRepMaxState(periodBest, earlierBest, unit)})`,
+      name,
+      text: hasBaseline
+        ? `${name} ${shown} (${oneRepMaxState(periodBest, earlierBest, unit)})`
+        : `${name} ${shown}`,
     });
   }
   if (entries.length === 0) return null;
   entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-  return `- Best estimated 1-rep max (Epley, sets of 1–12 reps) this period vs all earlier: ${entries.map((e) => e.text).join('; ')}.`;
+  const heading = hasBaseline
+    ? 'Best estimated 1-rep max (Epley, sets of 1–12 reps) this period vs all earlier'
+    : 'Best estimated 1-rep max (Epley, sets of 1–12 reps) this period';
+  return `- ${heading}: ${entries.map((e) => e.text).join('; ')}.`;
 }
 
 function mostTrainedLine(

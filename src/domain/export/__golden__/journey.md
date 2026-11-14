@@ -38,7 +38,7 @@
 - Workouts logged: 60 over 17.1 weeks (3.5 per week); total volume 50.8 t.
 - Adherence: no scheduled sessions are stored for this period.
 - Personal records this period: Bench Press weight 67 kg (previous best 65 kg) on Sat 18 Jul; Bench Press estimated 1RM 73.7 kg (previous best 71.5 kg) on Sat 18 Jul; Bench Press weight 69 kg (previous best 67 kg) on Mon 20 Jul; Bench Press estimated 1RM 75.9 kg (previous best 73.7 kg) on Mon 20 Jul; Bench Press weight 71 kg (previous best 69 kg) on Wed 22 Jul; Bench Press estimated 1RM 78.1 kg (previous best 75.9 kg) on Wed 22 Jul; Bench Press weight 73 kg (previous best 71 kg) on Fri 24 Jul; Bench Press estimated 1RM 80.3 kg (previous best 78.1 kg) on Fri 24 Jul.
-- Best estimated 1-rep max (Epley, sets of 1–12 reps) this period vs all earlier: Bench Press 80.3 kg (first time logged).
+- Best estimated 1-rep max (Epley, sets of 1–12 reps) this period: Bench Press 80.3 kg.
 - Most-trained lifts: Bench Press (60 sessions, e1RM 71.5 → 80.3 kg, best weight 73 kg).
 
 ### Activity

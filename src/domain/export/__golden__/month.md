@@ -40,7 +40,7 @@
 - Workouts logged: 5 (previous period 0); volume 5.9 t (previous none).
 - Adherence: 4 of 7 scheduled sessions done; 2 missed; 1 scheduled today, not yet done.
 - Personal records this period: Bench Press weight 90 kg (previous best 85 kg) on Sat 7 Nov.
-- Best estimated 1-rep max (Epley, sets of 1–12 reps) this period vs all earlier: Barbell Row 88.7 kg (first time logged); Bench Press 99.2 kg (first time logged); Squat 116.7 kg (first time logged).
+- Best estimated 1-rep max (Epley, sets of 1–12 reps) this period: Barbell Row 88.7 kg; Bench Press 99.2 kg; Squat 116.7 kg.
 
 ### Activity
 - Steps: mean 7,364 per day over 11 completed days with data (18 days without data skipped); total 81,000; no data in the previous period.

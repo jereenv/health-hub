@@ -258,3 +258,31 @@ test('weekly columns: sessions are real counts, volume and plan are – when the
     '–',
   ]);
 });
+
+test('journey: the 1RM line names no earlier comparison and no lift is "first time logged"', () => {
+  const line = training(syntheticWeek(), 'journey').text.summary.find((l) =>
+    l.startsWith('- Best estimated'),
+  )!;
+  expect(line).toBe(
+    '- Best estimated 1-rep max (Epley, sets of 1–12 reps) this period: Barbell Row 88.7 kg; Bench Press 99.2 kg; Squat 116.7 kg.',
+  );
+  expect(line).not.toContain('first time logged');
+});
+
+test('a week with a lift that is truly new that week still says "first time logged"', () => {
+  const line = training(syntheticWeek()).text.summary.find((l) =>
+    l.startsWith('- Best estimated'),
+  )!;
+  expect(line).toContain('Squat 116.7 kg (first time logged)');
+});
+
+test('a lift done bodyweight-only in the period (estimate 0) is not listed', () => {
+  const data = syntheticWeek();
+  // Weighted pull-ups earlier, bodyweight only this week.
+  data.workouts.unshift(
+    workoutOn(90, '2026-10-20', 'Pull', [{ id: 2, name: 'Pull-up', sets: [[10, 5]] }]),
+  );
+  const line = training(data).text.summary.find((l) => l.startsWith('- Best estimated'))!;
+  expect(line).not.toContain('Pull-up');
+  expect(line).not.toContain('0 kg');
+});
