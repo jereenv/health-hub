@@ -1,3 +1,5 @@
+import { createSqliteBleReadingRepository } from '@/data/body/bleReadings';
+import { createSqliteBodyRepository } from '@/data/body/BodyRepository';
 import { createSqliteHealthConnectRepository } from '@/data/healthconnect/HealthConnectRepository';
 import { createSqliteProfileRepository } from '@/data/profile/ProfileRepository';
 import { createSqliteScheduleRepository } from '@/data/schedule/ScheduleRepository';
@@ -105,4 +107,25 @@ test('wipe also clears the Health Connect tables and health_connect scale readin
   expect(await count(db, 'legacy_body_value')).toBe(0);
   expect(await count(db, 'sync_state')).toBe(0);
   expect((await healthConnect.listScaleReadings()).map((r) => r.source)).toEqual(['ble']);
+});
+
+test('wipe keeps a ble reading', async () => {
+  const db = await openTestDatabase();
+  await createSqliteBleReadingRepository(db).saveReading({
+    measuredAt: AT,
+    weightKg: 80,
+    impedanceOhm: 500,
+    rawPayload: 'aabbcc',
+    deviceId: 'dev-1',
+  });
+  await db.run(
+    `INSERT INTO scale_reading (measured_at, weight_kg, source, source_record_id)
+     VALUES ('2026-01-01T00:00:00.000Z', 70, 'health_connect', 'h1')`,
+  );
+
+  await wipeSyncedData(db);
+
+  const readings = await createSqliteBodyRepository(db).listReadings();
+  expect(readings.map((r) => r.source)).toEqual(['ble']);
+  expect(readings[0]?.impedanceOhm).toBe(500);
 });

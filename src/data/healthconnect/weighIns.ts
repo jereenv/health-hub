@@ -1,12 +1,6 @@
-import { localDateKey } from '@/domain/time/localDate';
+import { isSameTime, isSameWeighIn, type MatchRule } from '@/data/body/weighInMatch';
 
-import {
-  MOVINGLIFE_ORIGIN,
-  SAMSUNG_HEALTH_ORIGIN,
-  WEIGH_IN_MATCH,
-  WEIGH_IN_WEIGHT_TOLERANCE_KG,
-  WEIGH_IN_WINDOW_MS,
-} from './constants';
+import { MOVINGLIFE_ORIGIN, SAMSUNG_HEALTH_ORIGIN, WEIGH_IN_MATCH } from './constants';
 import type { BodyRecord } from './HealthConnectGateway';
 import type { WatchBodyFat, WeighIn } from './HealthConnectRepository';
 
@@ -21,11 +15,8 @@ export interface WeighInResult {
   implausible: number;
 }
 
-type Rule = 'time_window' | 'same_day';
-
 const MIN_WEIGHT_KG = 20;
 const MAX_WEIGHT_KG = 400;
-const WEIGHT_EPSILON = 1e-9;
 
 function byTimeThenId(a: BodyRecord, b: BodyRecord): number {
   return a.time < b.time
@@ -43,16 +34,15 @@ function ms(record: { time: string }): number {
   return new Date(record.time).getTime();
 }
 
-function sameTime(a: BodyRecord, b: BodyRecord, rule: Rule): boolean {
-  return rule === 'time_window'
-    ? Math.abs(ms(a) - ms(b)) <= WEIGH_IN_WINDOW_MS
-    : localDateKey(a.time) === localDateKey(b.time);
+function sameTime(a: BodyRecord, b: BodyRecord, rule: MatchRule): boolean {
+  return isSameTime(a.time, b.time, rule);
 }
 
-function isSameWeighIn(first: BodyRecord, candidate: BodyRecord, rule: Rule): boolean {
-  return (
-    sameTime(first, candidate, rule) &&
-    Math.abs(first.value - candidate.value) <= WEIGH_IN_WEIGHT_TOLERANCE_KG + WEIGHT_EPSILON
+function sameWeighIn(first: BodyRecord, candidate: BodyRecord, rule: MatchRule): boolean {
+  return isSameWeighIn(
+    { time: first.time, weightKg: first.value },
+    { time: candidate.time, weightKg: candidate.value },
+    rule,
   );
 }
 
@@ -68,7 +58,7 @@ function plausibleBodyFat(value: number): boolean {
 export function buildWeighIns(
   weights: readonly BodyRecord[],
   bodyFat: readonly BodyRecord[],
-  rule: Rule = WEIGH_IN_MATCH,
+  rule: MatchRule = WEIGH_IN_MATCH,
 ): WeighInResult {
   let ignored = 0;
   let implausible = 0;
@@ -89,7 +79,7 @@ export function buildWeighIns(
   const groups: BodyRecord[][] = [];
   for (const record of candidates) {
     const current = groups[groups.length - 1];
-    if (current !== undefined && isSameWeighIn(current[0]!, record, rule)) current.push(record);
+    if (current !== undefined && sameWeighIn(current[0]!, record, rule)) current.push(record);
     else groups.push([record]);
   }
 

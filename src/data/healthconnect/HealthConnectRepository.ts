@@ -1,9 +1,11 @@
+import { isSameWeighIn } from '@/data/body/weighInMatch';
 import type { SqlDatabase } from '@/data/db/SqlDatabase';
 import type { DateKey } from '@/domain/time/localDate';
 
 /** Origin recorded on body fat imported alongside a scale weight. */
 const LEGACY_ORIGIN = 'movinglife';
 const HEALTH_CONNECT_SOURCE = 'health_connect';
+const BLE_SOURCE = 'ble';
 
 export interface ActivityDay {
   date: DateKey;
@@ -143,7 +145,19 @@ export function createSqliteHealthConnectRepository(db: SqlDatabase): HealthConn
             [f.hcId, f.measuredAt, f.bodyFatPct, f.origin],
           );
         }
+        // The scale's own reading (with impedance) wins: an imported copy of it is dropped, body fat too.
+        const bleReadings = await db.all<{ measured_at: string; weight_kg: number }>(
+          'SELECT measured_at, weight_kg FROM scale_reading WHERE source = ?',
+          [BLE_SOURCE],
+        );
         for (const w of payload.weighIns) {
+          const matchesBle = bleReadings.some((ble) =>
+            isSameWeighIn(
+              { time: w.measuredAt, weightKg: w.weightKg },
+              { time: ble.measured_at, weightKg: ble.weight_kg },
+            ),
+          );
+          if (matchesBle) continue;
           const { lastInsertRowId } = await db.run(
             `INSERT INTO scale_reading (measured_at, weight_kg, source, source_record_id, raw_payload)
              VALUES (?, ?, ?, ?, ?)`,

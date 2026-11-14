@@ -59,6 +59,8 @@ export interface SyncCoordinator {
   resyncHealthConnect(): Promise<SyncRunResult>;
   /** Deletes all synced data (not the key, settings or profile). */
   wipe(): Promise<void>;
+  /** Something outside a sync changed stored data (a Bluetooth weigh-in): bumps `dataVersion` so screens re-read. */
+  notifyDataChanged(): void;
   subscribe(listener: () => void): () => void;
   getSnapshot(): SyncSnapshot;
 }
@@ -286,6 +288,10 @@ export function createSyncCoordinator(deps: SyncCoordinatorDeps): SyncCoordinato
         }
         update({ dataVersion: snapshot.dataVersion + 1 });
       });
+    },
+
+    notifyDataChanged() {
+      update({ dataVersion: snapshot.dataVersion + 1 });
     },
 
     subscribe(listener) {

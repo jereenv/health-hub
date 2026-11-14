@@ -223,3 +223,33 @@ test('applying the same payload twice leaves identical rows', async () => {
     scale: (await repo.listScaleReadings()).map(({ id: _id, ...rest }) => rest),
   }).toEqual(first);
 });
+
+test('applyImport drops an imported weigh-in that matches a ble reading and its legacy body fat', async () => {
+  const { db, repo } = await setup();
+  await db.run(
+    `INSERT INTO scale_reading (measured_at, weight_kg, source, source_record_id)
+     VALUES ('2026-11-01T12:01:00.000Z', 80.5, 'ble', 'b1')`,
+  );
+  await repo.applyImport(payload());
+
+  const readings = await repo.listScaleReadings();
+  expect(readings.map((r) => r.source)).toEqual(['ble', 'health_connect']);
+  expect(readings.map((r) => r.measuredAt)).toEqual([
+    '2026-11-01T12:01:00.000Z',
+    '2026-11-02T12:00:00.000Z',
+  ]);
+  const legacy = await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM legacy_body_value');
+  expect(legacy?.n).toBe(0);
+});
+
+test('applyImport keeps a ble reading and an unmatched imported one', async () => {
+  const { db, repo } = await setup();
+  await db.run(
+    `INSERT INTO scale_reading (measured_at, weight_kg, source, source_record_id)
+     VALUES ('2026-11-01T12:00:00.000Z', 90, 'ble', 'b1')`,
+  );
+  await repo.applyImport(payload());
+
+  const readings = await repo.listScaleReadings();
+  expect(readings.map((r) => r.source)).toEqual(['ble', 'health_connect', 'health_connect']);
+});

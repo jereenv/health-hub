@@ -1,5 +1,7 @@
 import type { BodyRepository } from '@/data/body/BodyRepository';
 import { createSqliteBodyRepository } from '@/data/body/BodyRepository';
+import type { BleReadingRepository } from '@/data/body/bleReadings';
+import { createSqliteBleReadingRepository } from '@/data/body/bleReadings';
 import { openExpoSqlDatabase } from '@/data/db/expoSqlDatabase';
 import { migrate } from '@/data/db/migrate';
 import { DATABASE_NAME, MIGRATIONS } from '@/data/db/schema';
@@ -14,6 +16,9 @@ import { createLyftaClient } from '@/data/lyfta/LyftaClient';
 import { wipeSyncedData } from '@/data/maintenance/wipeSyncedData';
 import type { ProfileRepository } from '@/data/profile/ProfileRepository';
 import { createSqliteProfileRepository } from '@/data/profile/ProfileRepository';
+import { createExpoBleScaleTransport } from '@/data/scale/expoBleScaleTransport';
+import type { ScaleRunner } from '@/data/scale/scaleRunner';
+import { createScaleRunner } from '@/data/scale/scaleRunner';
 import type { ScheduleRepository } from '@/data/schedule/ScheduleRepository';
 import { createSqliteScheduleRepository } from '@/data/schedule/ScheduleRepository';
 import { createExpoSecretStore } from '@/data/secrets/expoSecretStore';
@@ -30,6 +35,8 @@ import { createSqliteSyncStateRepository } from '@/data/sync/SyncStateRepository
 import { createSqliteWorkoutRepository } from '@/data/workouts/sqliteWorkoutRepository';
 import type { WorkoutRepository } from '@/data/workouts/WorkoutRepository';
 
+import { localDateKey } from '@/domain/time/localDate';
+
 import { memoizeAsync } from './memoizeAsync';
 
 /** Everything the screens need, built once at app start. */
@@ -40,6 +47,10 @@ export interface AppContainer {
   settings: SettingsRepository;
   profile: ProfileRepository;
   body: BodyRepository;
+  /** Saves Bluetooth scale weigh-ins with cross-source dedupe. */
+  bleReadings: BleReadingRepository;
+  /** The foreground Bluetooth scale session (Today card). */
+  scale: ScaleRunner;
   preferences: PreferencesStore;
   secrets: SecretStore;
   healthConnect: HealthConnectRepository;
@@ -89,6 +100,29 @@ async function createAppContainer(): Promise<AppContainer> {
     now: () => new Date(),
   });
 
+  const bleReadings = createSqliteBleReadingRepository(db);
+  const scale = createScaleRunner({
+    transport: createExpoBleScaleTransport(),
+    now: () => new Date(),
+    nowMs: () => Date.now(),
+    async loadProfile() {
+      const current = await profile.getCurrent();
+      const readings = await body.listReadings();
+      return {
+        sex: current?.sex ?? null,
+        heightCm: current?.heightCm ?? null,
+        birthDate: current?.birthDate ?? null,
+        lastWeightKg: readings[readings.length - 1]?.weightKg ?? null,
+        today: localDateKey(new Date()),
+      };
+    },
+    getRememberedId: () => settings.get('ble.scaleDeviceId'),
+    rememberId: (id) => settings.set('ble.scaleDeviceId', id),
+    saveReading: (reading) => bleReadings.saveReading(reading),
+    onSaved: () => sync.notifyDataChanged(),
+    delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  });
+
   return {
     workouts,
     schedule,
@@ -96,6 +130,8 @@ async function createAppContainer(): Promise<AppContainer> {
     settings,
     profile,
     body,
+    bleReadings,
+    scale,
     preferences,
     secrets,
     healthConnect,

@@ -613,3 +613,15 @@ describe('Health Connect', () => {
     });
   });
 });
+
+test('notifyDataChanged bumps dataVersion and notifies subscribers once', async () => {
+  const { sync } = await setup();
+  const listener = jest.fn();
+  sync.subscribe(listener);
+  const before = sync.getSnapshot().dataVersion;
+
+  sync.notifyDataChanged();
+
+  expect(sync.getSnapshot().dataVersion).toBe(before + 1);
+  expect(listener).toHaveBeenCalledTimes(1);
+});
