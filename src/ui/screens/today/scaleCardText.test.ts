@@ -37,11 +37,14 @@ describe.each(['kg', 'lb'] as const)('buildScaleCardModel in %s', (unit) => {
     expect(model?.action).toBeNull();
   });
 
-  test('live shows the weight with Settling… or Stable', () => {
+  test('live shows the weight with Settling… or Stay on', () => {
     const expected = unit === 'kg' ? '80.5 kg' : '177.5 lb';
     const stable = buildScaleCardModel({ kind: 'live', weightKg: 80.5, stable: true }, unit);
     const settling = buildScaleCardModel({ kind: 'live', weightKg: 80.5, stable: false }, unit);
-    expect(stable).toMatchObject({ weightText: expected, subtitle: 'Stable' });
+    expect(stable).toMatchObject({
+      weightText: expected,
+      subtitle: 'Stay on · measuring body composition',
+    });
     expect(settling).toMatchObject({ weightText: expected, subtitle: 'Settling…' });
   });
 

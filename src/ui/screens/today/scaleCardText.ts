@@ -61,7 +61,7 @@ export function buildScaleCardModel(state: ScaleState, unit: WeightUnit): ScaleC
     case 'live':
       return {
         title: 'Weighing',
-        subtitle: state.stable ? 'Stable' : 'Settling…',
+        subtitle: state.stable ? 'Stay on · measuring body composition' : 'Settling…',
         weightText: formatWeight(state.weightKg, unit),
         action: null,
         secondary: null,
