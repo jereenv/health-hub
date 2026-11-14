@@ -21,10 +21,13 @@ export function RangeBar({
   range,
   value,
   accessibilityLabel,
+  formatLabel = formatBoundary,
 }: {
   range: MetricRange;
   value: number;
   accessibilityLabel: string;
+  /** Formats the cut-off labels under the bar; defaults to a plain number. */
+  formatLabel?: (value: number) => string;
 }): React.JSX.Element {
   const { colors } = useTheme();
   const { segments, boundaries, markerFraction } = rangeBarLayout(range, value);
@@ -74,7 +77,7 @@ export function RangeBar({
               textAlign: 'center',
             }}
           >
-            {formatBoundary(boundary.value)}
+            {formatLabel(boundary.value)}
           </AppText>
         ))}
       </View>

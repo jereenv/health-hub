@@ -27,7 +27,10 @@ function labelsFor(
       axisLabel: formatDayMonth(slot.start),
     };
   }
-  return { tooltipLabel: formatMonthYear(slot.start), axisLabel: formatMonthShort(slot.start) };
+  return {
+    tooltipLabel: formatMonthYear(slot.start),
+    axisLabel: `${formatMonthShort(slot.start)} ${slot.start.slice(2, 4)}`,
+  };
 }
 
 /**

@@ -39,7 +39,7 @@ test('day tooltips read like "Wed 11 Nov", week "Week of 9 Nov", month "November
   expect([day[0]!.axisLabel, week[0]!.axisLabel, month[0]!.axisLabel]).toEqual([
     '11 Nov',
     '9 Nov',
-    'Nov',
+    'Nov 26',
   ]);
 });
 
@@ -71,4 +71,13 @@ test('the legend names the methods of the visible points: MovingLife hollow, eve
     { label: 'MovingLife', hollow: true },
   ]);
   expect(legendEntries(series([slot('2026-11-12', null)]))).toEqual([]);
+});
+
+test('month axis labels carry the two-digit year', () => {
+  const data = toBodyChartData(
+    series([slot('2024-12-01', 80), slot('2025-11-01', 79), slot('2026-11-01', 78)]),
+    'month',
+    '2026-11-13',
+  );
+  expect(data.map((d) => d.axisLabel)).toEqual(['Dec 24', 'Nov 25', 'Nov 26']);
 });

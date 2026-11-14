@@ -27,6 +27,7 @@ import { BodyTrendChart } from './BodyTrendChart';
 import { ExplainerCard } from './ExplainerCard';
 import { OriginChip } from './OriginChip';
 import { RangeBar } from './RangeBar';
+import { rangeLabelFormatter } from './rangeLabels';
 import { statusColor } from './statusColor';
 import { TierBadge } from './TierBadge';
 
@@ -200,6 +201,7 @@ export function MetricDetailScreen(): React.JSX.Element {
             <RangeBar
               range={detail.range}
               value={current.value}
+              formatLabel={rangeLabelFormatter(metric, unit)}
               accessibilityLabel={`${shown.value}${unitText} sits in the ${statusText ?? 'current'} zone`}
             />
             <AppText variant="caption" color="muted">
