@@ -12,7 +12,8 @@ export type IconName =
   | 'info'
   | 'check'
   | 'bulb'
-  | 'calendar';
+  | 'calendar'
+  | 'clipboard';
 
 export type IconShape =
   | { kind: 'path'; d: string }
@@ -46,5 +47,9 @@ export const ICON_SHAPES: Readonly<Record<IconName, readonly IconShape[]>> = {
   calendar: [
     { kind: 'rect', x: 3.5, y: 5.5, width: 17, height: 15, rx: 4 },
     path('M8 3.5v3M16 3.5v3'),
+  ],
+  clipboard: [
+    { kind: 'rect', x: 8, y: 8, width: 12, height: 12, rx: 3 },
+    path('M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2'),
   ],
 };

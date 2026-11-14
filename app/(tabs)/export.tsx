@@ -1,1 +1,1 @@
-export { ExportScreen as default } from '@/ui/screens/placeholders/ExportScreen';
+export { ExportScreen as default } from '@/ui/screens/export/ExportScreen';
